@@ -46,6 +46,7 @@ assign ws_to_ds_value = {32{ws_gr_we && ws_valid}} & rf_wdata;
 
 assign ws_ready_go = 1'b1;
 assign ws_allowin  = !ws_valid || ws_ready_go;
+
 always @(posedge clk) begin
     if (reset) begin
         ws_valid <= 1'b0;
@@ -53,7 +54,9 @@ always @(posedge clk) begin
     else if (ws_allowin) begin
         ws_valid <= ms_to_ws_valid;
     end
+end
 
+always @(posedge clk) begin
     if (ms_to_ws_valid && ws_allowin) begin
         ms_to_ws_bus_r <= ms_to_ws_bus;
     end
