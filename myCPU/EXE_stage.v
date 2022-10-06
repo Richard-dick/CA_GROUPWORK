@@ -6,10 +6,10 @@ module EXE_stage(
     output         es_allowin,
     //from ds
     input          ds_to_es_valid,
-    input  [154:0] ds_to_es_bus,
+    input  [162:0] ds_to_es_bus,
     //to ms
     output        es_to_ms_valid,
-    output [70:0] es_to_ms_bus,
+    output [75:0] es_to_ms_bus,
     // data sram interface
     output        data_sram_en,
     output [ 3:0] data_sram_wen,
@@ -37,6 +37,7 @@ wire [31:0] es_alu_result;
 wire [31:0] es_final_result;
 wire [31:0] rkd_value;
 wire [ 7:0] es_mul_div_op;
+wire [ 7:0] es_ld_st_op;
 wire        es_mul;
 wire        es_div;
 wire [63:0] unsigned_prod, signed_prod;
@@ -63,6 +64,7 @@ wire        udiv_done;
 wire [31:0] es_div_result;
 
 assign {
+    es_ld_st_op,        //162:155
     es_mul_div_op,      //154:148
     es_pc,              //147:116
     // alu
@@ -87,7 +89,8 @@ assign es_mul_result = {32{es_mul_div_op[0]}} & unsigned_prod[31:0]     //mul
                      | {32{es_mul_div_op[1]}} & signed_prod[63:32]       //mulh
                      | {32{es_mul_div_op[2]}} & unsigned_prod[63:32];   //mulh_u
 
-assign es_to_ms_bus = {es_res_from_mem,  //70:70
+assign es_to_ms_bus = {es_ld_st_op[4:0], //75:71
+                       es_res_from_mem,  //70:70
                        es_gr_we       ,  //69:69
                        es_dest        ,  //68:64
                        es_final_result  ,  //63:32
@@ -206,16 +209,16 @@ unsigned_divider my_unsigned_divider(
 
 // add st.b, st.h & st.w
 assign st_vaddr = es_alu_result[1:0];
-assign mem_write_strb = (inst_st_b && st_vaddr == 2'b00) 4'b0001 :
-                        (inst_st_b && st_vaddr == 2'b01) 4'b0010 :
-                        (inst_st_b && st_vaddr == 2'b10) 4'b0100 :
-                        (inst_st_b && st_vaddr == 2'b11) 4'b1000 :
-                        (inst_st_h && st_vaddr == 2'b00) 4'b0011 :
-                        (inst_st_h && st_vaddr == 2'b10) 4'b1100 :
-                                                         4'b1111 ;
-assign mem_write_data = inst_st_b ? {4{rkd_value[ 7:0]}} :
-                        inst_st_h ? {2{rkd_value[15:0]}} :
-                                       rkd_value[31:0];
+assign mem_write_strb = (es_ld_st_op[5] && st_vaddr == 2'b00) ? 4'b0001 :
+                        (es_ld_st_op[5] && st_vaddr == 2'b01) ? 4'b0010 :
+                        (es_ld_st_op[5] && st_vaddr == 2'b10) ? 4'b0100 :
+                        (es_ld_st_op[5] && st_vaddr == 2'b11) ? 4'b1000 :
+                        (es_ld_st_op[6] && st_vaddr == 2'b00) ? 4'b0011 :
+                        (es_ld_st_op[6] && st_vaddr == 2'b10) ? 4'b1100 :
+                                                                4'b1111 ;
+assign mem_write_data = es_ld_st_op[5] ? {4{rkd_value[ 7:0]}} :
+                        es_ld_st_op[6] ? {2{rkd_value[15:0]}} :
+                                            rkd_value[31:0];
 
 assign data_sram_en    = 1'b1;
 assign data_sram_wen   = (es_mem_we && es_valid) ? mem_write_strb : 4'b0000;

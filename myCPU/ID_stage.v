@@ -9,7 +9,7 @@ module ID_stage(
     input  [63:0]  fs_to_ds_bus,
     //to es
     output         ds_to_es_valid,
-    output [154:0] ds_to_es_bus,
+    output [162:0] ds_to_es_bus,
     //to fs
     output [32:0]  br_bus,
     //to rf: for write back
@@ -48,6 +48,7 @@ wire [31:0] br_target;
 
 wire [11:0] alu_op;
 wire [6 :0] mul_div_op;
+wire [7 :0] ld_st_op;
 wire        src1_is_pc;
 wire        src2_is_imm;
 wire        res_from_mem;
@@ -173,10 +174,10 @@ assign inst_slli_w = op_31_26_d[6'h00] & op_25_22_d[4'h1] & op_21_20_d[2'h0] & o
 assign inst_srli_w = op_31_26_d[6'h00] & op_25_22_d[4'h1] & op_21_20_d[2'h0] & op_19_15_d[5'h09];
 assign inst_srai_w = op_31_26_d[6'h00] & op_25_22_d[4'h1] & op_21_20_d[2'h0] & op_19_15_d[5'h11];
 assign inst_addi_w = op_31_26_d[6'h00] & op_25_22_d[4'ha];
-assign inst_ld_b   = op_31_26_d[6'b0a] & op_25_22_d[4'b0];
-assign inst_ld_bu  = op_31_26_d[6'b0a] & op_25_22_d[4'b8];
-assign inst_ld_h   = op_31_26_d[6'b0a] & op_25_22_d[4'b1];
-assign inst_ld_hu  = op_31_26_d[6'b0a] & op_25_22_d[4'b9];
+assign inst_ld_b   = op_31_26_d[6'h0a] & op_25_22_d[4'h0];
+assign inst_ld_bu  = op_31_26_d[6'h0a] & op_25_22_d[4'h8];
+assign inst_ld_h   = op_31_26_d[6'h0a] & op_25_22_d[4'h1];
+assign inst_ld_hu  = op_31_26_d[6'h0a] & op_25_22_d[4'h9];
 assign inst_ld_w   = op_31_26_d[6'h0a] & op_25_22_d[4'h2];
 assign inst_st_b   = op_31_26_d[6'h0a] & op_25_22_d[4'h4];
 assign inst_st_h   = op_31_26_d[6'h0a] & op_25_22_d[4'h5];
@@ -227,6 +228,14 @@ assign mul_div_op[3] = inst_div_w;
 assign mul_div_op[4] = inst_mod_w;
 assign mul_div_op[5] = inst_div_wu;
 assign mul_div_op[6] = inst_mod_wu;
+assign ld_st_op[0] = inst_ld_b;
+assign ld_st_op[1] = inst_ld_bu;
+assign ld_st_op[2] = inst_ld_h;
+assign ld_st_op[3] = inst_ld_hu;
+assign ld_st_op[4] = inst_ld_w;
+assign ld_st_op[5] = inst_st_b;
+assign ld_st_op[6] = inst_st_h;
+assign ld_st_op[7] = inst_st_w;
 
 wire [31:0] alu_src1;
 wire [31:0] alu_src2;
@@ -343,6 +352,7 @@ assign alu_src1 = src1_is_pc  ? ds_pc : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
 assign ds_to_es_bus = {
+    ld_st_op,       //162:155
     mul_div_op,     //154:148
     ds_pc,          //147:116
     alu_op,         //115:104
