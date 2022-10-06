@@ -43,6 +43,9 @@ wire [63:0] unsigned_prod, signed_prod;
 wire [31:0] es_mul_result;
 wire [31:0] q_result;
 wire [31:0] r_result;
+wire [ 3:0] mem_write_strb;
+wire [31:0] mem_write_data;
+wire [ 1:0] st_vaddr;
 
  
 wire        divisor_ready;
@@ -201,9 +204,22 @@ unsigned_divider my_unsigned_divider(
     .m_axis_dout_tvalid     (udiv_done) 
 );
 
+// add st.b, st.h & st.w
+assign st_vaddr = es_alu_result[1:0];
+assign mem_write_strb = (inst_st_b && st_vaddr == 2'b00) 4'b0001 :
+                        (inst_st_b && st_vaddr == 2'b01) 4'b0010 :
+                        (inst_st_b && st_vaddr == 2'b10) 4'b0100 :
+                        (inst_st_b && st_vaddr == 2'b11) 4'b1000 :
+                        (inst_st_h && st_vaddr == 2'b00) 4'b0011 :
+                        (inst_st_h && st_vaddr == 2'b10) 4'b1100 :
+                                                         4'b1111 ;
+assign mem_write_data = inst_st_b ? {4{rkd_value[ 7:0]}} :
+                        inst_st_h ? {2{rkd_value[15:0]}} :
+                                       rkd_value[31:0];
+
 assign data_sram_en    = 1'b1;
-assign data_sram_wen   = es_mem_we && es_valid ? 4'hf : 4'h0;
+assign data_sram_wen   = (es_mem_we && es_valid) ? mem_write_strb : 4'b0000;
 assign data_sram_addr  = es_alu_result;
-assign data_sram_wdata = rkd_value;
+assign data_sram_wdata = mem_write_data;
 
 endmodule

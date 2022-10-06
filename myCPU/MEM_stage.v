@@ -34,6 +34,13 @@ assign {ms_res_from_mem,  //70:70
        } = es_to_ms_bus_r;
 
 wire [31:0] mem_result;
+wire [ 7:0] ld_b_bu_sel;
+wire [31:0] ld_b_res;
+wire [31:0] ld_bu_res;
+wire [15:0] ld_h_hu_sel;
+wire [31:0] ld_h_res;
+wire [31:0] ld_hu_res;
+wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
 assign ms_to_ws_bus = {ms_gr_we       ,  //69:69
@@ -64,7 +71,21 @@ always @(posedge clk) begin
     end
 end
 
-assign mem_result = data_sram_rdata;
+assign ld_vaddr = ms_alu_result[1:0];
+assign ld_b_bu_sel = (ld_vaddr == 2'b00) ? data_sram_rdata[ 7: 0] :
+                     (ld_vaddr == 2'b01) ? data_sram_rdata[15: 8] :
+                     (ld_vaddr == 2'b10) ? data_sram_rdata[23:16] :
+                                           data_sram_rdata[31:24] ;
+assign ld_b_res  = {{24{ld_b_bu_sel[7]}}, ld_b_bu_sel};     // sign-extension(signed number)
+assign ld_bu_res = {{24{1'b0}}, ld_b_bu_sel};               // zero-extension(unsigned number)
+assign ld_h_hu_sel = (ld_vaddr == 2'b00) ? data_sram_rdata[15: 0] :
+                                           data_sram_rdata[31:16] ;
+assign ld_h_res  = {{16{ld_h_hu_sel[15]}}, ld_h_hu_sel};    // sign-extension(signed number)
+assign ld_hu_res = {{16{1'b0}}, ld_h_hu_sel};               // zero-extension(unsigned number)
+assign mem_result = (inst_ld_b ) ? ld_b_res  :
+                    (inst_ld_bu) ? ld_bu_res :
+                    (inst_ld_h ) ? ld_h_res  :
+                 /*(inst_ld_hu)*/? ld_hu_res ;
 
 assign ms_final_result = ms_res_from_mem ? mem_result
                                          : ms_alu_result;
