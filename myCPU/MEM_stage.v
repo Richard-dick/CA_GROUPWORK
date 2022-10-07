@@ -20,7 +20,7 @@ module MEM_stage(
 reg         ms_valid;
 wire        ms_ready_go;
 
-reg [70:0] es_to_ms_bus_r;
+reg [75:0] es_to_ms_bus_r;
 wire [ 4:0] ms_ld_op;
 wire        ms_res_from_mem;
 wire        ms_gr_we;

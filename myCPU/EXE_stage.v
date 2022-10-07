@@ -6,7 +6,7 @@ module EXE_stage(
     output         es_allowin,
     //from ds
     input          ds_to_es_valid,
-    input  [162:0] ds_to_es_bus,
+    input  [163:0] ds_to_es_bus,
     //to ms
     output        es_to_ms_valid,
     output [75:0] es_to_ms_bus,
@@ -24,7 +24,7 @@ module EXE_stage(
 reg         es_valid;
 wire        es_ready_go;
 
-reg  [154:0] ds_to_es_bus_r;
+reg  [163:0] ds_to_es_bus_r;
 wire [11:0] es_alu_op;
 wire        es_res_from_mem;
 wire        es_gr_we;
@@ -64,8 +64,8 @@ wire        udiv_done;
 wire [31:0] es_div_result;
 
 assign {
-    es_ld_st_op,        //162:155
-    es_mul_div_op,      //154:148
+    es_ld_st_op,        //163:156
+    es_mul_div_op,      //155:148
     es_pc,              //147:116
     // alu
     es_alu_op,          //115:104
