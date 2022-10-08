@@ -6,7 +6,7 @@ module MEM_stage(
     output        ms_allowin    ,
     //from es
     input         es_to_ms_valid,
-    input  [75:0] es_to_ms_bus  ,
+    input  [70:0] es_to_ms_bus  ,
     //to ws
     output        ms_to_ws_valid,
     output [69:0] ms_to_ws_bus  ,
@@ -20,15 +20,13 @@ module MEM_stage(
 reg         ms_valid;
 wire        ms_ready_go;
 
-reg [75:0] es_to_ms_bus_r;
-wire [ 4:0] ms_ld_op;
+reg [70:0] es_to_ms_bus_r;
 wire        ms_res_from_mem;
 wire        ms_gr_we;
 wire [ 4:0] ms_dest;
 wire [31:0] ms_alu_result;
 wire [31:0] ms_pc;
-assign {ms_ld_op,         //75:71
-        ms_res_from_mem,  //70:70
+assign {ms_res_from_mem,  //70:70
         ms_gr_we       ,  //69:69
         ms_dest        ,  //68:64
         ms_alu_result  ,  //63:32
@@ -36,13 +34,6 @@ assign {ms_ld_op,         //75:71
        } = es_to_ms_bus_r;
 
 wire [31:0] mem_result;
-wire [ 7:0] ld_b_bu_sel;
-wire [31:0] ld_b_res;
-wire [31:0] ld_bu_res;
-wire [15:0] ld_h_hu_sel;
-wire [31:0] ld_h_res;
-wire [31:0] ld_hu_res;
-wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
 assign ms_to_ws_bus = {ms_gr_we       ,  //69:69
@@ -73,22 +64,7 @@ always @(posedge clk) begin
     end
 end
 
-assign ld_vaddr = ms_alu_result[1:0];
-assign ld_b_bu_sel = (ld_vaddr == 2'b00) ? data_sram_rdata[ 7: 0] :
-                     (ld_vaddr == 2'b01) ? data_sram_rdata[15: 8] :
-                     (ld_vaddr == 2'b10) ? data_sram_rdata[23:16] :
-                                           data_sram_rdata[31:24] ;
-assign ld_b_res  = {{24{ld_b_bu_sel[7]}}, ld_b_bu_sel};     // sign-extension(signed number)
-assign ld_bu_res = {{24{1'b0}}, ld_b_bu_sel};               // zero-extension(unsigned number)
-assign ld_h_hu_sel = (ld_vaddr == 2'b00) ? data_sram_rdata[15: 0] :
-                                           data_sram_rdata[31:16] ;
-assign ld_h_res  = {{16{ld_h_hu_sel[15]}}, ld_h_hu_sel};    // sign-extension(signed number)
-assign ld_hu_res = {{16{1'b0}}, ld_h_hu_sel};               // zero-extension(unsigned number)
-assign mem_result = (ms_ld_op[0]) ? ld_b_res  :
-                    (ms_ld_op[1]) ? ld_bu_res :
-                    (ms_ld_op[2]) ? ld_h_res  :
-                    (ms_ld_op[3]) ? ld_hu_res :
-                                    data_sram_rdata;
+assign mem_result = data_sram_rdata;
 
 assign ms_final_result = ms_res_from_mem ? mem_result
                                          : ms_alu_result;
