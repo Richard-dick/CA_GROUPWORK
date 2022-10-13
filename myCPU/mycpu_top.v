@@ -33,9 +33,9 @@ wire es_to_ms_valid;
 wire ms_to_ws_valid;
 
 wire [63:0] fs_to_ds_bus;
-wire [162:0] ds_to_es_bus;
-wire [75:0] es_to_ms_bus;
-wire [69:0] ms_to_ws_bus;
+wire [228:0] ds_to_es_bus;
+wire [141:0] es_to_ms_bus;
+wire [135:0] ms_to_ws_bus;
 wire [37:0] ws_to_rf_bus;
 wire [32:0] br_bus;
 
@@ -49,6 +49,16 @@ wire [31:0] ws_to_ds_value;
 
 wire es_value_from_mem;
 
+wire [32:0] ws_reflush_fs_bus;
+wire ws_reflush_ds;
+wire ws_reflush_es;
+wire ws_reflush_ms;
+wire has_int;
+wire es_csr;
+wire ms_csr;
+wire ws_csr;
+wire ms_int;
+
 IF_stage if_stage(
     .clk            (clk            ),
     .reset          (reset          ),
@@ -60,7 +70,8 @@ IF_stage if_stage(
     .inst_sram_wen  (inst_sram_we  ),
     .inst_sram_addr (inst_sram_addr ),
     .inst_sram_wdata(inst_sram_wdata),
-    .inst_sram_rdata(inst_sram_rdata)
+    .inst_sram_rdata(inst_sram_rdata),
+    .ws_reflush_fs_bus(ws_reflush_fs_bus)
 );
 
 
@@ -81,7 +92,13 @@ ID_stage id_stage(
     .es_to_ds_value (es_to_ds_value ),
     .ms_to_ds_value (ms_to_ds_value ),
     .ws_to_ds_value (ws_to_ds_value ),
-    .es_value_from_mem (es_value_from_mem)
+    .es_value_from_mem (es_value_from_mem),
+    .ws_reflush_ds  (ws_reflush_ds),
+    .has_int        (has_int),
+    // block
+    .es_csr         (es_csr),
+    .ms_csr         (ms_csr),
+    .ws_csr         (ws_csr)
 );
 
 EXE_stage exe_stage(
@@ -99,7 +116,10 @@ EXE_stage exe_stage(
     .data_sram_wdata(data_sram_wdata),
     .es_to_ds_dest  (es_to_ds_dest  ),
     .es_to_ds_value (es_to_ds_value ),
-    .es_value_from_mem (es_value_from_mem)
+    .es_value_from_mem (es_value_from_mem),
+    .ws_reflush_es  (ws_reflush_es),
+    .ms_int         (ms_int),
+    .es_csr         (es_csr)
 );
 
 MEM_stage mem_stage(
@@ -113,7 +133,10 @@ MEM_stage mem_stage(
     .ms_to_ws_bus   (ms_to_ws_bus   ),
     .data_sram_rdata(data_sram_rdata),
     .ms_to_ds_dest  (ms_to_ds_dest  ),
-    .ms_to_ds_value (ms_to_ds_value )
+    .ms_to_ds_value (ms_to_ds_value ),
+    .ws_reflush_ms  (ws_reflush_ms),
+    .ms_int         (ms_int),
+    .ms_csr         (ms_csr)
 );
 
 WB_stage wb_stage(
@@ -129,6 +152,14 @@ WB_stage wb_stage(
     .debug_wb_rf_wnum (debug_wb_rf_wnum ),
     .debug_wb_rf_wdata(debug_wb_rf_wdata),
     .ws_to_ds_dest    (ws_to_ds_dest    ),
-    .ws_to_ds_value   (ws_to_ds_value   )
+    .ws_to_ds_value   (ws_to_ds_value   ),
+    // exception
+    .ws_reflush_fs_bus(ws_reflush_fs_bus),
+    .ws_reflush_ds    (ws_reflush_ds),
+    .ws_reflush_es    (ws_reflush_es),
+    .ws_reflush_ms    (ws_reflush_ms),
+
+    .has_int          (has_int),
+    .ws_csr         (ws_csr)
 );
 endmodule

@@ -6,34 +6,62 @@ module MEM_stage(
     output        ms_allowin    ,
     //from es
     input         es_to_ms_valid,
-    input  [75:0] es_to_ms_bus  ,
+    input  [141:0] es_to_ms_bus  ,
     //to ws
     output        ms_to_ws_valid,
-    output [69:0] ms_to_ws_bus  ,
+    output [135:0] ms_to_ws_bus  ,
     //from data-sram
     input  [31:0] data_sram_rdata,
     // to ds:: for data block
     output [ 4:0] ms_to_ds_dest,
-    output [31:0] ms_to_ds_value
+    output [31:0] ms_to_ds_value,
+    // exception
+    input         ws_reflush_ms,
+    output        ms_int,
+    // block
+    output        ms_csr
 );
 
 reg         ms_valid;
 wire        ms_ready_go;
 
-reg [75:0] es_to_ms_bus_r;
+reg [141:0] es_to_ms_bus_r;
 wire [ 4:0] ms_ld_op;
 wire        ms_res_from_mem;
 wire        ms_gr_we;
 wire [ 4:0] ms_dest;
 wire [31:0] ms_alu_result;
 wire [31:0] ms_pc;
-assign {ms_ld_op,         //75:71
-        ms_res_from_mem,  //70:70
-        ms_gr_we       ,  //69:69
-        ms_dest        ,  //68:64
-        ms_alu_result  ,  //63:32
-        ms_pc             //31:0
-       } = es_to_ms_bus_r;
+
+// exp12 - kernel
+wire ms_csr_we;
+wire ms_csr_rd;
+wire ms_ertn;
+wire [31:0] ms_csr_wmask;
+wire [13:0] ms_csr_num;
+wire [16:0] ms_ex_cause_bus;
+
+assign ms_csr = (ms_csr_we || ms_csr_rd) & ms_valid;
+assign ms_int = ms_valid & // valid stage
+                ( ms_ertn // ertn happened or
+                | (|ms_ex_cause_bus) // there are some exception causes
+                );
+
+
+assign {
+    ms_ertn,            //141:141
+    ms_csr_we,          //140:140
+    ms_csr_rd,          //139:139
+    ms_csr_wmask,       //138:107
+    ms_csr_num,         //106:93
+    ms_ex_cause_bus,    //92:76
+    ms_ld_op,         //75:71
+    ms_res_from_mem,  //70:70
+    ms_gr_we       ,  //69:69
+    ms_dest        ,  //68:64
+    ms_alu_result  ,  //63:32
+    ms_pc             //31:0
+    } = es_to_ms_bus_r;
 
 wire [31:0] mem_result;
 wire [ 7:0] ld_b_bu_sel;
@@ -45,11 +73,18 @@ wire [31:0] ld_hu_res;
 wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
-assign ms_to_ws_bus = {ms_gr_we       ,  //69:69
-                       ms_dest        ,  //68:64
-                       ms_final_result,  //63:32
-                       ms_pc             //31:0
-                      };
+assign ms_to_ws_bus = {
+    ms_ertn,            //135:135
+    ms_csr_we,          //134:134
+    ms_csr_rd,          //133:133
+    ms_csr_wmask,       //132:101
+    ms_csr_num,         //100:87
+    ms_ex_cause_bus,    //86:70
+    ms_gr_we       ,  //69:69
+    ms_dest        ,  //68:64
+    ms_final_result,  //63:32
+    ms_pc             //31:0
+    };
 
 // this inst is to write reg(gr_we) and it's valid!!
 assign ms_to_ds_dest = {5{ms_gr_we && ms_valid}} & ms_dest;
@@ -57,9 +92,12 @@ assign ms_to_ds_value = {32{ms_gr_we && ms_valid}} & ms_final_result;
 
 assign ms_ready_go    = 1'b1;
 assign ms_allowin     = !ms_valid || ms_ready_go && ws_allowin;
-assign ms_to_ws_valid = ms_valid && ms_ready_go;
+assign ms_to_ws_valid = ms_valid && ms_ready_go && !ws_reflush_ms;
 always @(posedge clk) begin
     if (reset) begin
+        ms_valid <= 1'b0;
+    end
+    else if(ws_reflush_ms) begin
         ms_valid <= 1'b0;
     end
     else if (ms_allowin) begin

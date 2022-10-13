@@ -9,7 +9,7 @@ module ID_stage(
     input  [63:0]  fs_to_ds_bus,
     //to es
     output         ds_to_es_valid,
-    output [162:0] ds_to_es_bus,
+    output [228:0] ds_to_es_bus,
     //to fs
     output [32:0]  br_bus,
     //to rf: for write back
@@ -23,7 +23,15 @@ module ID_stage(
     input  [31:0]  ms_to_ds_value,
     input  [31:0]  ws_to_ds_value,
 
-    input          es_value_from_mem
+    input          es_value_from_mem,
+    //reflush
+    input          ws_reflush_ds,
+    //int 
+    input          has_int,
+    // block
+    input          es_csr,
+    input          ms_csr,
+    input          ws_csr
 );
 
 reg         ds_valid;
@@ -136,6 +144,18 @@ wire        inst_ld_hu;
 wire        inst_st_b;
 wire        inst_st_h;
 
+// exp12-kernel mode
+wire csr_we;
+wire csr_rd;
+wire [31:0] csr_wmask;
+wire [13:0] csr_num;
+wire        inst_csr_rd;
+wire        inst_csr_wr;
+wire        inst_csr_xchg;
+wire        inst_ertn;
+wire        inst_syscall;
+wire [16:0] ex_cause_bus;
+
 // data block signal
 wire        rf_addr1_raw;
 wire        rf_addr2_raw;
@@ -143,6 +163,10 @@ wire [31:0] rf_addr1_forward;
 wire [31:0] rf_addr2_forward;
 wire        es_ld_cancel;
 wire        es_crash;//说明es阶段的dest和当前写相同，这种情况下，才考虑ready_go调0
+wire        csr_block;
+wire        es_csr_block;
+wire        ms_csr_block;
+wire        ws_csr_block;
 
 // branch——inst
 wire rj_eq_rd;
@@ -218,6 +242,22 @@ assign inst_bge    = op_31_26_d[6'h19];
 assign inst_bltu   = op_31_26_d[6'h1a];
 assign inst_bgeu   = op_31_26_d[6'h1b];
 
+// exp12- kernel inst decoder
+assign inst_csr_rd   = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & ~|rj;
+assign inst_csr_wr   = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & (rj == 5'b1);
+assign inst_csr_xchg = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & (|rj[4:1]);
+assign inst_ertn     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10]
+                       & (rk == 5'b01110) & ~|rj & ~|rd;
+assign inst_syscall  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h16];
+assign csr_we       = inst_csr_wr | inst_csr_xchg;
+assign csr_rd       = inst_csr_rd | inst_csr_xchg | inst_csr_wr;
+assign csr_wmask    = inst_csr_xchg ? rj_value : 32'hffffffff;
+assign csr_num = inst_ertn ? 14'h6 : ds_inst[23:10];
+// 自己好好商讨bus中的位置和相关信息，位宽是足够的。
+assign ex_cause_bus[6'h0/*INT*/] = ds_valid & has_int;
+assign ex_cause_bus[6'h1/*SYSCALL*/] = ds_valid & inst_syscall;
+assign ex_cause_bus[16:2] = 15'b0;
+
 
 assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_b | inst_ld_bu | inst_ld_h 
                     | inst_ld_hu | inst_ld_w | inst_st_b | inst_st_h | inst_st_w
@@ -279,7 +319,8 @@ assign jirl_offs = {{14{i16[15]}}, i16[15:0], 2'b0};
 
 assign src_reg_is_rd = inst_beq | inst_bne | inst_blt | inst_bge 
                     | inst_bltu | inst_bgeu 
-                    | inst_st_b | inst_st_h | inst_st_w;
+                    | inst_st_b | inst_st_h | inst_st_w
+                    | inst_csr_wr | inst_csr_xchg;
 
 assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
@@ -323,6 +364,13 @@ assign es_crash = (|es_to_ds_dest)
                 && ((rj == es_to_ds_dest)
                 || (rk == es_to_ds_dest)
                 || (rd == es_to_ds_dest));
+
+assign es_csr_block = es_csr && (rf_raddr1 == es_to_ds_dest
+                        || rf_raddr2 == es_to_ds_dest);
+assign ms_csr_block = ms_csr && (rf_raddr1 == ms_to_ds_dest
+                        || rf_raddr2 == ms_to_ds_dest);
+assign ws_csr_block = ws_csr && (rf_raddr1 == ws_to_ds_dest
+                        || rf_raddr2 == ws_to_ds_dest);
 
 assign rf_addr1_raw = rf_raddr1 && ((rf_raddr1 == es_to_ds_dest)
                 || (rf_raddr1 == ms_to_ds_dest)
@@ -375,7 +423,7 @@ assign br_taken_cancel = br_taken && ds_ready_go;
 always @(posedge clk) begin
     if (reset)
         ds_valid <= 1'b0;
-    else if(br_taken_cancel)
+    else if(br_taken_cancel || ws_reflush_ds)
         ds_valid <= 1'b0;
     else if (ds_allowin)
         ds_valid <= fs_to_ds_valid;
@@ -394,6 +442,12 @@ assign alu_src1 = src1_is_pc  ? ds_pc : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
 assign ds_to_es_bus = {
+    inst_ertn,      //228:228
+    csr_we,         //227:227
+    csr_rd,         //226:226
+    csr_wmask,      //225:194
+    csr_num,        //193:180
+    ex_cause_bus,   //179:163
     ld_st_op,       //162:155
     mul_div_op,     //154:148
     ds_pc,          //147:116
@@ -412,9 +466,13 @@ assign ds_to_es_bus = {
 assign es_ld_cancel = !(es_value_from_mem
                     && es_crash);
 
-assign ds_ready_go    = es_ld_cancel;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
+assign csr_block = es_csr_block 
+                | ms_csr_block 
+                | ws_csr_block;
+
+assign ds_ready_go    = (es_ld_cancel & (!csr_block)) | ws_reflush_ds ;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
 assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
-assign ds_to_es_valid = ds_valid && ds_ready_go;
+assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 
 assign fs_pc = fs_to_ds_bus[31:0];
 assign {ds_inst, ds_pc} = fs_to_ds_bus_r;

@@ -13,7 +13,9 @@ module IF_stage(
     output [ 3:0] inst_sram_wen,
     output [31:0] inst_sram_addr,
     output [31:0] inst_sram_wdata,
-    input  [31:0] inst_sram_rdata
+    input  [31:0] inst_sram_rdata,
+    // reflush
+    input  [32:0] ws_reflush_fs_bus
 );
 
 reg         fs_valid;
@@ -28,6 +30,11 @@ wire [31:0] nextpc;
 wire        br_taken;
 wire [31:0] br_target;
 
+// jump to sepc
+wire ws_reflush_fs;
+wire [31:0] ex_entry;
+assign {ws_reflush_fs, ex_entry} = ws_reflush_fs_bus;
+
 // 本阶段IF需要传给ID的信息
 wire [31:0] fs_inst;
 reg  [31:0] fs_pc;
@@ -40,12 +47,13 @@ assign br_taken_cancel = ds_allowin && br_taken;
 // pre-IF
 assign to_fs_valid  = ~reset;
 assign seq_pc       = fs_pc + 3'h4;
-assign nextpc       = br_taken ? br_target : seq_pc; 
+assign nextpc       = ws_reflush_fs ? ex_entry :
+                     br_taken ? br_target : seq_pc; 
 
 // IF
 assign fs_ready_go    = 1'b1;
 assign fs_allowin     = !fs_valid || fs_ready_go && ds_allowin;
-assign fs_to_ds_valid =  fs_valid && fs_ready_go;
+assign fs_to_ds_valid =  fs_valid && fs_ready_go && !ws_reflush_fs;
 
 always @(posedge clk) begin
     if (reset) begin
