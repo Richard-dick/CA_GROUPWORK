@@ -64,7 +64,7 @@ module csr(
     input  [31: 0] csr_wmask,
     input  [31: 0] csr_wvalue,
 
-// exceptino trigger
+// exception trigger
     input          ws_ex, 
     input  [5 : 0] ws_ecode, 
     input  [8 : 0] ws_esubcode,
@@ -81,16 +81,16 @@ module csr(
 
 
 //CRMD
-    reg  [ 1: 0] csr_crmd_plv;
-    reg          csr_crmd_ie;
-    reg          csr_crmd_da;
-    reg          csr_crmd_pg;
-    wire  [31:0] csr_crmd_rvalue;
+reg  [ 1: 0] csr_crmd_plv;
+reg          csr_crmd_ie;
+reg          csr_crmd_da;
+reg          csr_crmd_pg;
+wire  [31:0] csr_crmd_rvalue;
 
 //PRMD
-    reg  [ 1: 0] csr_prmd_pplv;
-    reg          csr_prmd_pie;
-    wire [31: 0] csr_prmd_rvalue;
+reg  [ 1: 0] csr_prmd_pplv;
+reg          csr_prmd_pie;
+wire [31: 0] csr_prmd_rvalue;
  
 //ECFG
 reg  [12: 0] csr_ecfg_lie;
@@ -147,7 +147,7 @@ wire [31: 0] csr_ticlr_rvalue;
 
 
 
-// CRMD PLV&&IE
+// CRMD: PLV & IE
 always @(posedge clk) begin
     if (reset) begin
         csr_crmd_plv <= 2'b0;
@@ -171,7 +171,7 @@ always @(posedge clk) begin
     end
 end
 
-//PRMD PPLV&&IE
+//PRMD: PPLV & IE
 always @(posedge clk) begin
     if(ws_ex) begin
         csr_prmd_pplv <= csr_crmd_plv;
@@ -185,7 +185,7 @@ always @(posedge clk) begin
     end
 end
 
-// ECFG LIE
+// ECFG: LIE
 always @(posedge clk) begin
     if(reset)
         csr_ecfg_lie <= 13'b0;
@@ -194,7 +194,7 @@ always @(posedge clk) begin
                       | ~csr_wmask[`CSR_ECFG_LIE]&csr_ecfg_lie;
 end
 
-//ESTAT
+// ESTAT: IS
 always @(posedge clk) begin
     if(reset)
         csr_estat_is[1:0] <= 2'b0;
@@ -214,6 +214,7 @@ always @(posedge clk) begin
     csr_estat_is[12] <= ipi_int_in;
 end
 
+// ESTAT: Ecode & EsubCode
 always @(posedge clk) begin
     if (ws_ex) begin
         csr_estat_ecode <= ws_ecode;

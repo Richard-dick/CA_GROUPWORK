@@ -145,8 +145,13 @@ assign debug_wb_rf_wdata = rf_wdata;
 // csr
 assign ws_ex = ws_valid & (|ws_ex_cause_bus);
 assign ws_ecode = (ws_ex_cause_bus[6'h1] & ws_valid) ? `ECODE_SYS         
+                : (ws_ex_cause_bus[6'h2] & ws_valid) ? `ECODE_ADE
+                : (ws_ex_cause_bus[6'h3] & ws_valid) ? `ECODE_ALE
+                : (ws_ex_cause_bus[6'h4] & ws_valid) ? `ECODE_BRK
+                : (ws_ex_cause_bus[6'h5] & ws_valid) ? `ECODE_INE
                 : 6'b0;
-assign ws_esubcode = 9'b0;
+assign ws_esubcode = (ws_ex_cause_bus[6'h2] & ws_valid) ? `ESUBCODE_ADEF
+                   : 9'b0;
 assign ws_reflush_ds = ws_valid & // valid stage
                     ( ws_ertn // ertn happened or
                     | (|ws_ex_cause_bus) // there are some exception causes
@@ -159,7 +164,7 @@ assign ws_reflush_fs_bus = {ws_valid & // valid stage
                         :((|ws_ex_cause_bus)?(ex_entry):ws_pc+4)
                         };     
 
-assign hw_int_in     = 8'b0;
+assign hw_int_in     = 8'b0;            // ????? 这个硬中断如何采样处理？
 assign ipi_int_in    = 1'b0;
 assign ws_csr = (ws_csr_we || ws_csr_rd) & ws_valid;
 

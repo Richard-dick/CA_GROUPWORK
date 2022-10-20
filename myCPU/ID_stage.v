@@ -6,7 +6,7 @@ module ID_stage(
     output         ds_allowin,
     //from fs
     input          fs_to_ds_valid,
-    input  [63:0]  fs_to_ds_bus,
+    input  [64:0]  fs_to_ds_bus,
     //to es
     output         ds_to_es_valid,
     output [228:0] ds_to_es_bus,
@@ -14,7 +14,7 @@ module ID_stage(
     output [32:0]  br_bus,
     //to rf: for write back
     input  [37:0]  ws_to_rf_bus,
-    // from latter stage:: to cancel an inst by revise ready_go
+    //from latter stages: to cancel an inst by revising ready_go
     input  [ 4:0]  es_to_ds_dest,
     input  [ 4:0]  ms_to_ds_dest,
     input  [ 4:0]  ws_to_ds_dest,
@@ -38,7 +38,7 @@ reg         ds_valid;
 wire        ds_ready_go;
 
 wire [31:0] fs_pc;
-reg  [63:0] fs_to_ds_bus_r;
+reg  [64:0] fs_to_ds_bus_r;
 
 wire [31:0] ds_inst;
 wire [31:0] ds_pc;
@@ -144,7 +144,7 @@ wire        inst_ld_hu;
 wire        inst_st_b;
 wire        inst_st_h;
 
-// exp12-kernel mode
+// exp12 - kernel mode
 wire csr_we;
 wire csr_rd;
 wire [31:0] csr_wmask;
@@ -154,7 +154,12 @@ wire        inst_csr_wr;
 wire        inst_csr_xchg;
 wire        inst_ertn;
 wire        inst_syscall;
+wire        inst_break;
 wire [16:0] ex_cause_bus;
+
+// exp13 - exception judgment logic signals
+wire ex_adef;       // 取指地址错 (由fs_to_ex_bus搭载)
+wire ex_ine;        // 指令不存在
 
 // data block signal
 wire        rf_addr1_raw;
@@ -168,7 +173,7 @@ wire        es_csr_block;
 wire        ms_csr_block;
 wire        ws_csr_block;
 
-// branch——inst
+// branch instrutions
 wire rj_eq_rd;
 wire rj_l_rd;
 wire rj_ge_rd;
@@ -242,21 +247,48 @@ assign inst_bge    = op_31_26_d[6'h19];
 assign inst_bltu   = op_31_26_d[6'h1a];
 assign inst_bgeu   = op_31_26_d[6'h1b];
 
-// exp12- kernel inst decoder
+// exp12 - kernel inst decoder
 assign inst_csr_rd   = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & ~|rj;
 assign inst_csr_wr   = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & (rj == 5'b1);
 assign inst_csr_xchg = op_31_26_d[6'h01] & ~ds_inst[25] & ~ds_inst[24] & (|rj[4:1]);
 assign inst_ertn     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10]
                        & (rk == 5'b01110) & ~|rj & ~|rd;
 assign inst_syscall  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h16];
+assign inst_break    = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h14];
 assign csr_we       = inst_csr_wr | inst_csr_xchg;
 assign csr_rd       = inst_csr_rd | inst_csr_xchg | inst_csr_wr;
 assign csr_wmask    = inst_csr_xchg ? rj_value : 32'hffffffff;
 assign csr_num = inst_ertn ? 14'h6 : ds_inst[23:10];
+
+// Generate exception cause signals at ID stage(ex_ine and etc.).
+// --- NOTE: EVERY TIME A NEW INST IS ADDED, EX_INE SIGNAL SHOULD UPDATE ---
+assign ex_ine = inst_add_w || inst_addi_w || inst_and || inst_andi || 
+                inst_b || inst_beq || inst_bge || inst_bgeu || inst_bgeu ||
+                inst_bl || inst_blt || inst_bltu || inst_bne || inst_break ||
+                inst_csr_rd || inst_csr_wr || inst_csr_xchg ||
+                inst_div_w || inst_div_wu || inst_ertn || inst_jirl ||
+                inst_ld_b || inst_ld_bu || inst_ld_h || inst_ld_hu || 
+                inst_ld_w || inst_lu12i_w || 
+                inst_mod_w || inst_mod_wu || inst_mul_w || inst_mulh_w || inst_mulh_wu ||
+                inst_nor || inst_or || inst_ori || inst_pcaddu12i ||
+                inst_sll || inst_slli_w || inst_slt || inst_slti || inst_sltu || inst_sltui ||
+                inst_sra || inst_srai_w || inst_srl || inst_srli_w || 
+                inst_st_b || inst_st_h || inst_st_w || inst_sub_w || inst_syscall ||
+                inst_xor || inst_xori;
+
 // 自己好好商讨bus中的位置和相关信息，位宽是足够的。
-assign ex_cause_bus[6'h0/*INT*/] = ds_valid & has_int;
+// 目前bus中搭载的异常标志约定如下：
+// 0: INT           1: SYSCALL      2: ADEF
+// 3: ALE           4: BRK          5: INE
+// 6-16: (RESERVED)
+assign ex_cause_bus[16:6] = 15'b0;
+assign ex_cause_bus[6'h0/*INT    */] = ds_valid & has_int;
 assign ex_cause_bus[6'h1/*SYSCALL*/] = ds_valid & inst_syscall;
-assign ex_cause_bus[16:2] = 15'b0;
+// TODO: add ID stage exception causes
+assign ex_cause_bus[6'h2/*ADEF   */] = ds_valid & ex_adef;
+// (ALE exception will be generated at EXE stage)
+assign ex_cause_bus[6'h4/*BRK    */] = ds_valid & ex_ine;
+assign ex_cause_bus[6'h5/*INE    */] = ds_valid & inst_break;
 
 
 assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_b | inst_ld_bu | inst_ld_h 
@@ -475,7 +507,7 @@ assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
 assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 
 assign fs_pc = fs_to_ds_bus[31:0];
-assign {ds_inst, ds_pc} = fs_to_ds_bus_r;
+assign {ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
 
 assign {rf_we   ,  //37:37
         rf_waddr,  //36:32

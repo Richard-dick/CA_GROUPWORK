@@ -76,6 +76,7 @@ wire [63:0] udiv_result;
 wire        udiv_done;
 
 wire [31:0] es_div_result;
+wire [16:0] es_ex_cause_bus_r;
 
 assign {
     es_ertn,            //228:228
@@ -117,7 +118,7 @@ assign es_to_ms_bus = {
     es_csr_rd,          //139:139
     es_csr_wmask,       //138:107
     es_csr_num,         //106:93
-    es_ex_cause_bus,    //92:76
+    es_ex_cause_bus_r,  //92:76
 
     es_ld_st_op[4:0], //75:71
     es_res_from_mem,  //70:70
@@ -229,6 +230,14 @@ unsigned_divider my_unsigned_divider(
 
 // add st.b, st.h & st.w
 assign st_vaddr = es_alu_result[1:0];
+// es_ld_st_op[0] -> inst_ld_b;
+// es_ld_st_op[1] -> inst_ld_bu
+// es_ld_st_op[2] -> inst_ld_h;
+// es_ld_st_op[3] -> inst_ld_hu
+// es_ld_st_op[4] -> inst_ld_w;
+// es_ld_st_op[5] -> inst_st_b;
+// es_ld_st_op[6] -> inst_st_h;
+// es_ld_st_op[7] -> inst_st_w;
 assign mem_write_strb = (es_ld_st_op[5] && st_vaddr == 2'b00) ? 4'b0001 :
                         (es_ld_st_op[5] && st_vaddr == 2'b01) ? 4'b0010 :
                         (es_ld_st_op[5] && st_vaddr == 2'b10) ? 4'b0100 :
@@ -239,6 +248,16 @@ assign mem_write_strb = (es_ld_st_op[5] && st_vaddr == 2'b00) ? 4'b0001 :
 assign mem_write_data = es_ld_st_op[5] ? {4{rkd_value[ 7:0]}} :
                         es_ld_st_op[6] ? {2{rkd_value[15:0]}} :
                                             rkd_value[31:0];
+
+// generate ALE exception signal
+// here st_vaddr acts both as st_vaddr and ld_vaddr, 
+// because we must fully generate ALE exception signal at this stage
+assign es_ex_cause_bus_r[6'h3/*ALE*/] = ((st_vaddr[0] != 1'b0) && 
+                                         (es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6])) ||
+                                        ((st_vaddr[1:0] != 2'b00) &&
+                                         (es_ld_st_op[4] || es_ld_st_op[7]));
+assign es_ex_cause_bus_r[16:4] = es_ex_cause_bus[16:4];
+assign es_ex_cause_bus_r[ 2:0] = es_ex_cause_bus[ 2:0];
 
 assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
 

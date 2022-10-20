@@ -7,7 +7,7 @@ module IF_stage(
     input  [32:0] br_bus,
     //to ds
     output        fs_to_ds_valid,
-    output [63:0] fs_to_ds_bus,
+    output [64:0] fs_to_ds_bus,
     // inst sram interface
     output        inst_sram_en,
     output [ 3:0] inst_sram_wen,
@@ -30,6 +30,11 @@ wire [31:0] nextpc;
 wire        br_taken;
 wire [31:0] br_target;
 
+// whether ADEF exception occurs
+// ADEF exception should happen at pre-IF stage
+wire is_ex_adef;
+assign is_ex_adef = (nextpc[1:0] != 2'b00);
+
 // jump to sepc
 wire ws_reflush_fs;
 wire [31:0] ex_entry;
@@ -41,14 +46,17 @@ reg  [31:0] fs_pc;
 wire        br_taken_cancel;
 
 assign {br_taken, br_target} = br_bus;
-assign fs_to_ds_bus = {fs_inst, fs_pc};
+assign fs_to_ds_bus = {fs_inst, 
+                       fs_pc, 
+                       is_ex_adef};     // 将ADEF异常判断信号传到ID阶段，
+                                        // 再由ex_cause_bus统一搭载传递至WB阶段
 assign br_taken_cancel = ds_allowin && br_taken;
 
 // pre-IF
 assign to_fs_valid  = ~reset;
 assign seq_pc       = fs_pc + 3'h4;
 assign nextpc       = ws_reflush_fs ? ex_entry :
-                     br_taken ? br_target : seq_pc; 
+                      br_taken ? br_target : seq_pc; 
 
 // IF
 assign fs_ready_go    = 1'b1;
