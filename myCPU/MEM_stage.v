@@ -9,7 +9,7 @@ module MEM_stage(
     input  [141:0] es_to_ms_bus  ,
     //to ws
     output        ms_to_ws_valid,
-    output [135:0] ms_to_ws_bus  ,
+    output [167:0] ms_to_ws_bus  ,
     //from data-sram
     input  [31:0] data_sram_rdata,
     // to ds:: for data block
@@ -32,6 +32,7 @@ wire        ms_gr_we;
 wire [ 4:0] ms_dest;
 wire [31:0] ms_alu_result;
 wire [31:0] ms_pc;
+wire [31:0] ms_vaddr;
 
 // exp12 - kernel
 wire ms_csr_we;
@@ -46,7 +47,7 @@ assign ms_int = ms_valid & // valid stage
                 ( ms_ertn // ertn happened or
                 | (|ms_ex_cause_bus) // there are some exception causes
                 );
-
+assign ms_vaddr = ms_alu_result;
 
 assign {
     ms_ertn,            //141:141
@@ -74,6 +75,7 @@ wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
 assign ms_to_ws_bus = {
+    ms_vaddr,            //167:136
     ms_ertn,            //135:135
     ms_csr_we,          //134:134
     ms_csr_rd,          //133:133

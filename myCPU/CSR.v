@@ -69,6 +69,8 @@ module csr(
     input  [5 : 0] ws_ecode, 
     input  [8 : 0] ws_esubcode,
     input  [31: 0] ws_pc,
+    input  [31: 0] ws_vaddr,
+    input  [31: 0] coreid_in,
     input          ertn,  //ertn
 
     output         has_int, 
@@ -232,6 +234,14 @@ always @(posedge clk) begin
                    | ~csr_wmask[`CSR_ERA_PC]&csr_era_pc;
 end
 
+//BADV
+assign es_ex_addr_err = ws_ecode==`ECODE_ADE || ws_ecode==`ECODE_ALE;
+
+always @(posedge clk) begin
+    if (ws_ex && es_ex_addr_err)
+        csr_badv_vaddr <= (ws_ecode==`ECODE_ADE && ws_esubcode==`ESUBCODE_ADEF) ? ws_pc : ws_vaddr;
+end
+
 //EENTRY
 always @(posedge clk) begin
     if (csr_we && csr_num==`CSR_EENTRY)
@@ -253,6 +263,14 @@ always @(posedge clk) begin
     if (csr_we && csr_num==`CSR_SAVE3)
         csr_save3_data <= csr_wmask[`CSR_SAVE_DATA]&csr_wvalue[`CSR_SAVE_DATA]
                        | ~csr_wmask[`CSR_SAVE_DATA]&csr_save3_data;
+end
+
+//TID
+always @(posedge clk) begin
+    if (reset)
+        csr_tid_tid <= coreid_in;
+    else if(csr_we && csr_num==`CSR_TID)
+        csr_tid_tid <= csr_wmask[`CSR_TID_TID]&csr_wvalue[`CSR_TID_TID]|~csr_wmask[`CSR_TID_TID]&csr_tid_tid;
 end
 
 //TCFG
@@ -287,6 +305,8 @@ always @(posedge clk) begin
                 timer_cnt <= timer_cnt - 1'b1;
     end
 end
+
+
 
 assign csr_tval_timeval = timer_cnt[31:0];
 

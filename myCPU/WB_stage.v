@@ -39,7 +39,7 @@ module WB_stage(
     output         ws_allowin,
     //from ms
     input          ms_to_ws_valid,
-    input  [135:0] ms_to_ws_bus,
+    input  [167:0] ms_to_ws_bus,
     //to rf: for write back
     output [37:0]  ws_to_rf_bus,
     //trace debug interface
@@ -65,11 +65,12 @@ module WB_stage(
 reg         ws_valid;
 wire        ws_ready_go;
 
-reg [135:0] ms_to_ws_bus_r;
+reg [167:0] ms_to_ws_bus_r;
 wire        ws_gr_we;
 wire [ 4:0] ws_dest;
 wire [31:0] ws_final_result;
 wire [31:0] ws_pc;
+wire [31:0] coreid_in;
 
 // exp12 - kernel
 wire ws_csr_we;
@@ -82,6 +83,7 @@ wire [31:0] csr_rvalue;
 wire [7:0] hw_int_in;
 wire ipi_int_in;
 // wire [31:0] csr_wvalue;
+wire [31:0] ws_vaddr;
 wire ws_ertn;
 wire ws_ex;
 wire [5:0] ws_ecode;
@@ -90,6 +92,7 @@ wire [31:0] ex_entry;
 wire [31:0] era_entry;
 
 assign {
+    ws_vaddr,           //167:136
     ws_ertn,            //135:135
     ws_csr_we,          //134:134
     ws_csr_rd,          //133:133
@@ -182,6 +185,8 @@ csr inst_csr(
     ,.ws_pc         (ws_pc)
     ,.ws_ecode      (ws_ecode)
     ,.ws_esubcode   (ws_esubcode)
+    ,.ws_vaddr      (ws_vaddr)
+    ,.coreid_in     (coreid_in) 
     ,.ertn          (ws_ertn)
 
     ,.has_int       (has_int)
