@@ -37,7 +37,6 @@ module ID_stage(
 reg         ds_valid;
 wire        ds_ready_go;
 
-wire [31:0] fs_pc;
 reg  [64:0] fs_to_ds_bus_r;
 
 wire [31:0] ds_inst;
@@ -507,7 +506,6 @@ assign ds_ready_go    = (es_ld_cancel & (!csr_block)) | ws_reflush_ds ;//!(rj_is
 assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
 assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 
-assign fs_pc = fs_to_ds_bus[31:0];
 assign {ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
 
 assign {rf_we   ,  //37:37
