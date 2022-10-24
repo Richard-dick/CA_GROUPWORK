@@ -61,7 +61,7 @@ wire [31:0] es_csr_wmask;
 wire [13:0] es_csr_num;
 wire [16:0] es_ex_cause_bus;
 wire es_ertn;
-
+wire es_int;
 
  
 wire        divisor_ready;
@@ -113,6 +113,7 @@ assign es_mul_result = {32{es_mul_div_op[0]}} & unsigned_prod[31:0]     //mul
                      | {32{es_mul_div_op[1]}} & signed_prod[63:32]       //mulh
                      | {32{es_mul_div_op[2]}} & unsigned_prod[63:32];   //mulh_u
 
+// 增加错误判断：出现异常则置写使能无效
 assign es_to_ms_gr_we = es_gr_we & ~(|es_ex_cause_bus_r);
 
 assign es_to_ms_bus = {
@@ -262,10 +263,12 @@ assign es_ex_cause_bus_r[6'h3/*ALE*/] = ((st_vaddr[0] != 1'b0) &&
 assign es_ex_cause_bus_r[16:4] = es_ex_cause_bus[16:4];
 assign es_ex_cause_bus_r[ 2:0] = es_ex_cause_bus[ 2:0];
 
+assign es_int = es_ex_cause_bus_r[6'h3];
+
 assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
 
 assign data_sram_en    = 1'b1;
-assign data_sram_wen   = (es_mem_we && es_valid && !ms_int) ? mem_write_strb : 4'h0;
+assign data_sram_wen   = (es_mem_we && es_valid && !ms_int && !es_int) ? mem_write_strb : 4'h0;
 assign data_sram_addr  = es_alu_result;
 assign data_sram_wdata = mem_write_data;
 
