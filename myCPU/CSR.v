@@ -26,13 +26,13 @@
     `define CSR_ESTAT_IS10    1 :0
     `define CSR_TICLR_CLR     0
     `define CSR_ERA_PC        31:0
-    `define CSR_EENTRY_VA     31:6
     `define CSR_SAVE_DATA     31:0
     `define CSR_TID_TID       31:0
     `define CSR_TCFG_EN       0
     `define CSR_TCFG_PERIOD   1
     `define CSR_TCFG_INITV    31:2
     `define CSR_TCFG_INITVAL  31:2
+    `define CSR_EENTRY_VA     31:6
 
 
 // EX_CODE declaration

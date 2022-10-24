@@ -170,6 +170,7 @@ assign ws_reflush_fs_bus = {ws_valid & // valid stage
 assign hw_int_in     = 8'b0;            // ????? 这个硬中断如何采样处理？
 assign ipi_int_in    = 1'b0;
 assign ws_csr = (ws_csr_we || ws_csr_rd) & ws_valid;
+assign coreid_in = 32'b0;
 
 csr inst_csr(
      .clk           (clk)
