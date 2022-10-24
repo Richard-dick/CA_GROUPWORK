@@ -23,7 +23,8 @@ module EXE_stage(
     input         ws_reflush_es,
     input         ms_int,
     // block
-    output        es_csr
+    output        es_csr,
+    output        es_tid
 );
 
 reg         es_valid;
@@ -159,7 +160,7 @@ assign es_final_result = es_mul ? es_mul_result :
 
 // this inst is to write reg(gr_we) and it's valid!!
 assign es_to_ds_dest = {5{es_gr_we && es_valid}} & es_dest;
-assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_final_result;
+assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_alu_result;
 assign es_value_from_mem = es_valid && es_res_from_mem;
 
 assign es_ready_go    = ~(|es_mul_div_op[6:3] && ~(udiv_done || div_done));//1'b1; // 是div指令，且没有done
@@ -286,6 +287,7 @@ assign es_ex_cause_bus_r[ 2:0] = es_ex_cause_bus[ 2:0];
 assign es_int = es_ex_cause_bus_r[6'h3];
 
 assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
+assign es_tid = es_rdcntid & es_valid;
 
 assign data_sram_en    = 1'b1;
 assign data_sram_wen   = (es_mem_we && es_valid && !ms_int && !es_int) ? mem_write_strb : 4'h0;

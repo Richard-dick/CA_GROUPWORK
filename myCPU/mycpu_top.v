@@ -98,7 +98,9 @@ ID_stage id_stage(
     // block
     .es_csr         (es_csr),
     .ms_csr         (ms_csr),
-    .ws_csr         (ws_csr)
+    .ws_csr         (ws_csr),
+    .es_tid         (es_tid),
+    .ms_tid         (ms_tid)
 );
 
 EXE_stage exe_stage(
@@ -119,7 +121,8 @@ EXE_stage exe_stage(
     .es_value_from_mem (es_value_from_mem),
     .ws_reflush_es  (ws_reflush_es),
     .ms_int         (ms_int),
-    .es_csr         (es_csr)
+    .es_csr         (es_csr),
+    .es_tid         (es_tid)
 );
 
 MEM_stage mem_stage(
@@ -136,7 +139,8 @@ MEM_stage mem_stage(
     .ms_to_ds_value (ms_to_ds_value ),
     .ws_reflush_ms  (ws_reflush_ms),
     .ms_int         (ms_int),
-    .ms_csr         (ms_csr)
+    .ms_csr         (ms_csr),
+    .ms_tid         (ms_tid)
 );
 
 WB_stage wb_stage(

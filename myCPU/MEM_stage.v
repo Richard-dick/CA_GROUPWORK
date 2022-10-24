@@ -19,7 +19,8 @@ module MEM_stage(
     input         ws_reflush_ms,
     output        ms_int,
     // block
-    output        ms_csr
+    output        ms_csr,
+    output        ms_tid
 );
 
 reg         ms_valid;
@@ -44,6 +45,7 @@ wire [13:0] ms_csr_num;
 wire [16:0] ms_ex_cause_bus;
 
 assign ms_csr = (ms_csr_we || ms_csr_rd) & ms_valid;
+assign ms_tid = ms_rdcntid & ms_valid;
 assign ms_int = ms_valid & // valid stage
                 ( ms_ertn // ertn happened or
                 | (|ms_ex_cause_bus) // there are some exception causes
