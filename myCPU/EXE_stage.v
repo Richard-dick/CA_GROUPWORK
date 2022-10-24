@@ -6,10 +6,10 @@ module EXE_stage(
     output         es_allowin,
     //from ds
     input          ds_to_es_valid,
-    input  [228:0] ds_to_es_bus,
+    input  [231:0] ds_to_es_bus,
     //to ms
     output        es_to_ms_valid,
-    output [141:0]es_to_ms_bus,
+    output [142:0]es_to_ms_bus,
     // data sram interface
     output        data_sram_en,
     output [ 3:0] data_sram_wen,
@@ -29,7 +29,7 @@ module EXE_stage(
 reg         es_valid;
 wire        es_ready_go;
 
-reg [228:0] ds_to_es_bus_r;
+reg [231:0] ds_to_es_bus_r;
 wire [11:0] es_alu_op;
 wire        es_res_from_mem;
 wire        es_gr_we;
@@ -63,6 +63,15 @@ wire [16:0] es_ex_cause_bus;
 wire es_ertn;
 wire es_int;
 
+// stable counter for rdcntv{l/h}.w [lxy]
+reg [63:0] stable_cnt;
+always @(posedge clk) begin
+    if (reset)
+        stable_cnt <= 64'h0;
+    else
+        stable_cnt <= stable_cnt + 1'b1;
+end
+
  
 wire        divisor_ready;
 reg         div_valid;
@@ -79,7 +88,14 @@ wire        udiv_done;
 wire [31:0] es_div_result;
 wire [16:0] es_ex_cause_bus_r;
 
+wire es_rdcntid;
+wire es_rdcntvl;
+wire es_rdcntvh;
+
 assign {
+    es_rdcntid,         //231:231
+    es_rdcntvl,         //230:230
+    es_rdcntvh,         //229:229
     es_ertn,            //228:228
     // csr && kernel
     es_csr_we,          //227:227
@@ -117,6 +133,7 @@ assign es_mul_result = {32{es_mul_div_op[0]}} & unsigned_prod[31:0]     //mul
 assign es_to_ms_gr_we = es_gr_we & ~(|es_ex_cause_bus_r);
 
 assign es_to_ms_bus = {
+    es_rdcntid,         //142:142
     es_ertn,            //141:141
     es_csr_we,          //140:140
     es_csr_rd,          //139:139
@@ -134,7 +151,10 @@ assign es_to_ms_bus = {
 
 assign es_final_result = es_mul ? es_mul_result :
                          es_div ? es_div_result : 
-                         es_csr_we ? rkd_value : es_alu_result;
+                         es_csr_we ? rkd_value : 
+                         es_rdcntvl ? stable_cnt[31:0] :
+                         es_rdcntvh ? stable_cnt[63:32] :
+                         es_alu_result;
 
 
 // this inst is to write reg(gr_we) and it's valid!!

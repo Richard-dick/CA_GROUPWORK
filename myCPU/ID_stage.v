@@ -9,7 +9,7 @@ module ID_stage(
     input  [64:0]  fs_to_ds_bus,
     //to es
     output         ds_to_es_valid,
-    output [228:0] ds_to_es_bus,
+    output [231:0] ds_to_es_bus,
     //to fs
     output [32:0]  br_bus,
     //to rf: for write back
@@ -142,6 +142,15 @@ wire        inst_ld_h;
 wire        inst_ld_hu;
 wire        inst_st_b;
 wire        inst_st_h;
+wire        inst_rdcntvl_w;
+wire        inst_rdcntvh_w;
+wire        inst_rdcntid_w;
+
+// 用于RDCNT类3条指令特殊译码
+wire        inst_rdcnt;
+wire        inst_rdcntvl_w_tail;
+wire        inst_rdcntvh_w_tail;
+wire        inst_rdcntid_w_tail;
 
 // exp12 - kernel mode
 wire csr_we;
@@ -171,6 +180,11 @@ wire        csr_block;
 wire        es_csr_block;
 wire        ms_csr_block;
 wire        ws_csr_block;
+
+// 讲义7.4 计数器相关的三条指令
+wire rdcntvl;
+wire rdcntvh;
+wire rdcntid;
 
 // branch instrutions
 wire rj_eq_rd;
@@ -254,10 +268,24 @@ assign inst_ertn     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] &
                        & (rk == 5'b01110) & ~|rj & ~|rd;
 assign inst_syscall  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h16];
 assign inst_break    = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h14];
+
+// rdcnt类指令译码
+assign inst_rdcnt    = (ds_inst[31:15] == 17'h0);
+assign inst_rdcntid_w_tail = (ds_inst[14:10] == 5'h18 && ds_inst[4:0] == 5'h00);
+assign inst_rdcntvl_w_tail = (ds_inst[14:10] == 5'h18 && ds_inst[9:5] == 5'h00);
+assign inst_rdcntvh_w_tail = (ds_inst[14:10] == 5'h19 && ds_inst[9:5] == 5'h00);
+assign inst_rdcntid_w = inst_rdcnt && inst_rdcntid_w_tail;
+assign inst_rdcntvl_w = inst_rdcnt && inst_rdcntvl_w_tail;
+assign inst_rdcntvh_w = inst_rdcnt && inst_rdcntvh_w_tail;
+
+assign rdcntvh = inst_rdcntvh_w;
+assign rdcntvl = inst_rdcntvl_w;
+assign rdcntid = inst_rdcntid_w;
+
 assign csr_we       = inst_csr_wr | inst_csr_xchg;
 assign csr_rd       = inst_csr_rd | inst_csr_xchg | inst_csr_wr;
 assign csr_wmask    = inst_csr_xchg ? rj_value : 32'hffffffff;
-assign csr_num = inst_ertn ? 14'h6 : ds_inst[23:10];
+assign csr_num = inst_ertn ? 14'h6 : rdcntid ? 14'h40 : ds_inst[23:10];
 
 // Generate exception cause signals at ID stage(ex_ine and etc.).
 // --- NOTE: EVERY TIME A NEW INST IS ADDED, EX_INE SIGNAL SHOULD UPDATE ---
@@ -385,7 +413,7 @@ assign gr_we         = ~inst_st_b & ~inst_st_h & ~inst_st_w
                      & ~inst_beq & ~inst_bne & ~inst_blt 
                      & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_b;
 assign mem_we        = inst_st_b | inst_st_h | inst_st_w;
-assign dest          = dst_is_r1 ? 5'd1 : rd;
+assign dest          = dst_is_r1 ? 5'd1 : rdcntid ? rj : rd;
 
 assign rf_raddr1 = rj;
 assign rf_raddr2 = src_reg_is_rd ? rd :rk;
@@ -474,6 +502,9 @@ assign alu_src1 = src1_is_pc  ? ds_pc : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
 assign ds_to_es_bus = {
+    rdcntid,        //231:231
+    rdcntvl,        //230:230
+    rdcntvh,        //229:229 
     inst_ertn,      //228:228
     csr_we,         //227:227
     csr_rd,         //226:226

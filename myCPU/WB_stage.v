@@ -39,7 +39,7 @@ module WB_stage(
     output         ws_allowin,
     //from ms
     input          ms_to_ws_valid,
-    input  [167:0] ms_to_ws_bus,
+    input  [168:0] ms_to_ws_bus,
     //to rf: for write back
     output [37:0]  ws_to_rf_bus,
     //trace debug interface
@@ -65,7 +65,7 @@ module WB_stage(
 reg         ws_valid;
 wire        ws_ready_go;
 
-reg [167:0] ms_to_ws_bus_r;
+reg [168:0] ms_to_ws_bus_r;
 wire        ws_gr_we;
 wire [ 4:0] ws_dest;
 wire [31:0] ws_final_result;
@@ -86,12 +86,14 @@ wire ipi_int_in;
 wire [31:0] ws_vaddr;
 wire ws_ertn;
 wire ws_ex;
+wire ws_rdcntid;
 wire [5:0] ws_ecode;
 wire [8:0] ws_esubcode;
 wire [31:0] ex_entry;
 wire [31:0] era_entry;
 
 assign {
+    ws_rdcntid,         //168:168
     ws_vaddr,           //167:136
     ws_ertn,            //135:135
     ws_csr_we,          //134:134
@@ -140,7 +142,7 @@ end
 
 assign rf_we    = ws_gr_we && ws_valid;
 assign rf_waddr = ws_dest;
-assign rf_wdata = ws_csr_rd ? csr_rvalue : ws_final_result;
+assign rf_wdata = ws_csr_rd ? csr_rvalue : ws_rdcntid ? csr_rvalue : ws_final_result;
 
 // debug
 assign debug_wb_pc       = ws_pc;

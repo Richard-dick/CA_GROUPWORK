@@ -6,10 +6,10 @@ module MEM_stage(
     output        ms_allowin    ,
     //from es
     input         es_to_ms_valid,
-    input  [141:0] es_to_ms_bus  ,
+    input  [142:0] es_to_ms_bus  ,
     //to ws
     output        ms_to_ws_valid,
-    output [167:0] ms_to_ws_bus  ,
+    output [168:0] ms_to_ws_bus  ,
     //from data-sram
     input  [31:0] data_sram_rdata,
     // to ds:: for data block
@@ -25,7 +25,7 @@ module MEM_stage(
 reg         ms_valid;
 wire        ms_ready_go;
 
-reg [141:0] es_to_ms_bus_r;
+reg [142:0] es_to_ms_bus_r;
 wire [ 4:0] ms_ld_op;
 wire        ms_res_from_mem;
 wire        ms_gr_we;
@@ -38,6 +38,7 @@ wire [31:0] ms_vaddr;
 wire ms_csr_we;
 wire ms_csr_rd;
 wire ms_ertn;
+wire ms_rdcntid;
 wire [31:0] ms_csr_wmask;
 wire [13:0] ms_csr_num;
 wire [16:0] ms_ex_cause_bus;
@@ -50,6 +51,7 @@ assign ms_int = ms_valid & // valid stage
 assign ms_vaddr = ms_alu_result;
 
 assign {
+    ms_rdcntid,         //142:142
     ms_ertn,            //141:141
     ms_csr_we,          //140:140
     ms_csr_rd,          //139:139
@@ -75,7 +77,8 @@ wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
 assign ms_to_ws_bus = {
-    ms_vaddr,            //167:136
+    ms_rdcntid,         //168:168 
+    ms_vaddr,           //167:136
     ms_ertn,            //135:135
     ms_csr_we,          //134:134
     ms_csr_rd,          //133:133

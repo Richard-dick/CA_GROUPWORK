@@ -33,9 +33,9 @@ wire es_to_ms_valid;
 wire ms_to_ws_valid;
 
 wire [64:0] fs_to_ds_bus;
-wire [228:0] ds_to_es_bus;
-wire [141:0] es_to_ms_bus;
-wire [167:0] ms_to_ws_bus;
+wire [231:0] ds_to_es_bus;
+wire [142:0] es_to_ms_bus;
+wire [168:0] ms_to_ws_bus;
 wire [37:0] ws_to_rf_bus;
 wire [32:0] br_bus;
 
