@@ -179,6 +179,7 @@ reg         es_rdcntid_cancel_stall;
 wire        es_rdcntid_cancel;
 wire        es_cancel;
 wire        es_crash;//说明es阶段的dest和当前写相同，这种情况下，才考虑ready_go调0
+wire        ms_crash;
 wire        csr_block;
 wire        es_csr_block;
 wire        ms_csr_block;
@@ -304,7 +305,7 @@ assign ex_ine = ~(inst_add_w || inst_addi_w || inst_and || inst_andi ||
                 inst_sll || inst_slli_w || inst_slt || inst_slti || inst_sltu || inst_sltui ||
                 inst_sra || inst_srai_w || inst_srl || inst_srli_w || 
                 inst_st_b || inst_st_h || inst_st_w || inst_sub_w || inst_syscall ||
-                inst_xor || inst_xori);
+                inst_xor || inst_xori || inst_rdcntid_w || inst_rdcntvh_w || inst_rdcntvl_w);
 
 // 自己好好商讨bus中的位置和相关信息，位宽是足够的。
 // 目前bus中搭载的异常标志约定如下：
@@ -422,11 +423,14 @@ assign rf_raddr1 = rj;
 assign rf_raddr2 = src_reg_is_rd ? rd :rk;
 
 //data block
-
 assign es_crash = (|es_to_ds_dest)
                 && ((rj == es_to_ds_dest)
                 || (rk == es_to_ds_dest)
                 || (rd == es_to_ds_dest));
+assign ms_crash = (|ms_to_ds_dest)
+                && ((rj == ms_to_ds_dest)
+                || (rk == ms_to_ds_dest)
+                || (rd == ms_to_ds_dest));
 
 assign es_csr_block = es_csr && (rf_raddr1 == es_to_ds_dest
                         || rf_raddr2 == es_to_ds_dest);
@@ -534,11 +538,11 @@ assign es_ld_cancel = !(es_value_from_mem && es_crash);
 always @(posedge clk) begin
     if(reset)
         es_rdcntid_cancel_stall <= 1'b1;
-    else if(!es_rdcntid_cancel)
-        es_rdcntid_cancel_stall <= 1'b0;
+    else
+        es_rdcntid_cancel_stall <= es_rdcntid_cancel;
 end
 
-// rdcntid_stall表示上条指令为rdcntid，用于前递阻塞判断
+// rdcntid_stall表示上条指令为rdcntid，用于EXE阶段前递阻塞判断
 reg rdcntid_stall;
 always @(posedge clk) begin
     if(reset)
@@ -548,8 +552,19 @@ always @(posedge clk) begin
     else if(rdcntid)
         rdcntid_stall <= 1'b1;
 end
-assign es_rdcntid_cancel = !(rdcntid_stall && es_crash);   // ??
-assign es_cancel = es_ld_cancel && es_rdcntid_cancel && es_rdcntid_cancel_stall;
+// rdcntid_stall表示上条指令为rdcntid，用于MEM阶段前递阻塞判断
+reg rdcntid_stall2;
+always @(posedge clk) begin
+    if(reset)
+        rdcntid_stall2 <= 1'b0;
+    else if(rdcntid_stall2 == 1'b1)
+        rdcntid_stall2 <= 1'b0;
+    else if(rdcntid_stall)
+        rdcntid_stall2 <= 1'b1;
+end
+assign es_rdcntid_cancel = !(rdcntid_stall  && es_crash);   
+assign ms_rdcntid_cancel = !(rdcntid_stall2 && ms_crash);
+assign es_cancel = es_ld_cancel && es_rdcntid_cancel && es_rdcntid_cancel_stall && ms_rdcntid_cancel;
 
 assign csr_block = es_csr_block 
                 | ms_csr_block 

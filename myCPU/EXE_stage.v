@@ -159,7 +159,7 @@ assign es_final_result = es_mul ? es_mul_result :
 
 // this inst is to write reg(gr_we) and it's valid!!
 assign es_to_ds_dest = {5{es_gr_we && es_valid}} & es_dest;
-assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_alu_result;
+assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_final_result;
 assign es_value_from_mem = es_valid && es_res_from_mem;
 
 assign es_ready_go    = ~(|es_mul_div_op[6:3] && ~(udiv_done || div_done));//1'b1; // 是div指令，且没有done
