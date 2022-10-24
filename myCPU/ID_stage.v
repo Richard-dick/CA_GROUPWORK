@@ -175,6 +175,9 @@ wire        rf_addr2_raw;
 wire [31:0] rf_addr1_forward;
 wire [31:0] rf_addr2_forward;
 wire        es_ld_cancel;
+reg         es_rdcntid_cancel_stall;
+wire        es_rdcntid_cancel;
+wire        es_cancel;
 wire        es_crash;//说明es阶段的dest和当前写相同，这种情况下，才考虑ready_go调0
 wire        csr_block;
 wire        es_csr_block;
@@ -526,14 +529,22 @@ assign ds_to_es_bus = {
     gr_we           //0:0
 };
 
-assign es_ld_cancel = !(es_value_from_mem
-                    && es_crash);
+assign es_ld_cancel = !(es_value_from_mem && es_crash);
+
+always @(posedge clk) begin
+    if(reset)
+        es_rdcntid_cancel_stall <= 1'b1;
+    else if(!es_rdcntid_cancel)
+        es_rdcntid_cancel_stall <= 1'b0;
+end
+assign es_rdcntid_cancel = !(rdcntid && es_crash);   // ??
+assign es_cancel = es_ld_cancel && es_rdcntid_cancel && es_rdcntid_cancel_stall;
 
 assign csr_block = es_csr_block 
                 | ms_csr_block 
                 | ws_csr_block;
 
-assign ds_ready_go    = (es_ld_cancel & (!csr_block)) | ws_reflush_ds ;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
+assign ds_ready_go    = (es_cancel & (!csr_block)) | ws_reflush_ds ;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
 assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
 assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 
