@@ -537,7 +537,18 @@ always @(posedge clk) begin
     else if(!es_rdcntid_cancel)
         es_rdcntid_cancel_stall <= 1'b0;
 end
-assign es_rdcntid_cancel = !(rdcntid && es_crash);   // ??
+
+// rdcntid_stall表示上条指令为rdcntid，用于前递阻塞判断
+reg rdcntid_stall;
+always @(posedge clk) begin
+    if(reset)
+        rdcntid_stall <= 1'b0;
+    else if(rdcntid_stall == 1'b1)
+        rdcntid_stall <= 1'b0;
+    else if(rdcntid)
+        rdcntid_stall <= 1'b1;
+end
+assign es_rdcntid_cancel = !(rdcntid_stall && es_crash);   // ??
 assign es_cancel = es_ld_cancel && es_rdcntid_cancel && es_rdcntid_cancel_stall;
 
 assign csr_block = es_csr_block 
