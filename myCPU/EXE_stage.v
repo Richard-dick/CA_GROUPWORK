@@ -33,6 +33,7 @@ reg [228:0] ds_to_es_bus_r;
 wire [11:0] es_alu_op;
 wire        es_res_from_mem;
 wire        es_gr_we;
+wire        es_to_ms_gr_we;
 wire        es_mem_we;
 wire [ 4:0] es_dest;
 wire [31:0] es_pc;
@@ -112,6 +113,8 @@ assign es_mul_result = {32{es_mul_div_op[0]}} & unsigned_prod[31:0]     //mul
                      | {32{es_mul_div_op[1]}} & signed_prod[63:32]       //mulh
                      | {32{es_mul_div_op[2]}} & unsigned_prod[63:32];   //mulh_u
 
+assign es_to_ms_gr_we = es_gr_we & ~(|es_ex_cause_bus_r);
+
 assign es_to_ms_bus = {
     es_ertn,            //141:141
     es_csr_we,          //140:140
@@ -122,7 +125,7 @@ assign es_to_ms_bus = {
 
     es_ld_st_op[4:0], //75:71
     es_res_from_mem,  //70:70
-    es_gr_we,  //69:69
+    es_to_ms_gr_we,  //69:69
     es_dest,  //68:64
     es_final_result,  //63:32
     es_pc             //31:0

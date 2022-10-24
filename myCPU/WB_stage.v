@@ -124,6 +124,9 @@ always @(posedge clk) begin
     if (reset) begin
         ws_valid <= 1'b0;
     end
+    else if(ws_reflush_ds) begin
+        ws_valid <= 1'b0;
+    end
     else if (ws_allowin) begin
         ws_valid <= ms_to_ws_valid;
     end

@@ -262,7 +262,7 @@ assign csr_num = inst_ertn ? 14'h6 : ds_inst[23:10];
 
 // Generate exception cause signals at ID stage(ex_ine and etc.).
 // --- NOTE: EVERY TIME A NEW INST IS ADDED, EX_INE SIGNAL SHOULD UPDATE ---
-assign ex_ine = inst_add_w || inst_addi_w || inst_and || inst_andi || 
+assign ex_ine = ~(inst_add_w || inst_addi_w || inst_and || inst_andi || 
                 inst_b || inst_beq || inst_bge || inst_bgeu || inst_bgeu ||
                 inst_bl || inst_blt || inst_bltu || inst_bne || inst_break ||
                 inst_csr_rd || inst_csr_wr || inst_csr_xchg ||
@@ -274,7 +274,7 @@ assign ex_ine = inst_add_w || inst_addi_w || inst_and || inst_andi ||
                 inst_sll || inst_slli_w || inst_slt || inst_slti || inst_sltu || inst_sltui ||
                 inst_sra || inst_srai_w || inst_srl || inst_srli_w || 
                 inst_st_b || inst_st_h || inst_st_w || inst_sub_w || inst_syscall ||
-                inst_xor || inst_xori;
+                inst_xor || inst_xori);
 
 // 自己好好商讨bus中的位置和相关信息，位宽是足够的。
 // 目前bus中搭载的异常标志约定如下：
@@ -287,8 +287,8 @@ assign ex_cause_bus[6'h1/*SYSCALL*/] = ds_valid & inst_syscall;
 // TODO: add ID stage exception causes
 assign ex_cause_bus[6'h2/*ADEF   */] = ds_valid & ex_adef;
 // (ALE exception will be generated at EXE stage)
-assign ex_cause_bus[6'h4/*BRK    */] = ds_valid & ex_ine;
-assign ex_cause_bus[6'h5/*INE    */] = ds_valid & inst_break;
+assign ex_cause_bus[6'h4/*BRK    */] = ds_valid & inst_break;
+assign ex_cause_bus[6'h5/*INE    */] = ds_valid & ex_ine;
 
 
 assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_b | inst_ld_bu | inst_ld_h 
@@ -381,6 +381,7 @@ assign src2_is_imm   = inst_slli_w |
 assign res_from_mem  = inst_ld_b | inst_ld_bu 
                     | inst_ld_h | inst_ld_hu | inst_ld_w;
 assign dst_is_r1     = inst_bl;
+// NOTE: NEWLY ADDED INSTRUCTION MAY DISENABLE GR_WE
 assign gr_we         = ~inst_st_b & ~inst_st_h & ~inst_st_w
                      & ~inst_beq & ~inst_bne & ~inst_blt 
                      & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_b;
