@@ -157,7 +157,7 @@ assign ws_ecode = (ws_ex_cause_bus[6'h1] & ws_valid) ? `ECODE_SYS
                 : (ws_ex_cause_bus[6'h3] & ws_valid) ? `ECODE_ALE
                 : (ws_ex_cause_bus[6'h4] & ws_valid) ? `ECODE_BRK
                 : (ws_ex_cause_bus[6'h5] & ws_valid) ? `ECODE_INE
-                : 6'b0;
+                : 6'b0;                     // !!!!! 只记录最早报出的例外
 assign ws_esubcode = (ws_ex_cause_bus[6'h2] & ws_valid) ? `ESUBCODE_ADEF
                    : 9'b0;
 assign ws_reflush_ds = ws_valid & // valid stage
