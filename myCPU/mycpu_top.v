@@ -2,16 +2,35 @@ module mycpu_top(
     input  wire        clk,
     input  wire        resetn,
     // inst sram interface
-    output wire        inst_sram_en,
-    output wire        inst_sram_we,
+    // output wire        inst_sram_en,
+    // output wire        inst_sram_we,
+    // output wire [31:0] inst_sram_addr,
+    // output wire [31:0] inst_sram_wdata,
+    // input  wire [31:0] inst_sram_rdata,
+    output wire        inst_sram_req,   //en
+    output wire        inst_sram_wr,    //|wen
+    output wire [ 1:0] inst_sram_size, 
     output wire [31:0] inst_sram_addr,
+    output wire [ 3:0] inst_sram_wstrb, //wen
     output wire [31:0] inst_sram_wdata,
+    input  wire        inst_sram_addr_ok,
+    input  wire        inst_sram_data_ok,
     input  wire [31:0] inst_sram_rdata,
     // data sram interface
-    output wire        data_sram_en,
-    output wire [ 3:0] data_sram_we,
+    // output wire        data_sram_en,
+    // output wire [ 3:0] data_sram_we,
+    // output wire [31:0] data_sram_addr,
+    // output wire [31:0] data_sram_wdata,
+    // input  wire [31:0] data_sram_rdata,
+
+    output wire        data_sram_req,
+    output wire        data_sram_wr,
+    output wire [ 1:0] data_sram_size,
     output wire [31:0] data_sram_addr,
+    output wire [ 3:0] data_sram_wstrb,
     output wire [31:0] data_sram_wdata,
+    input  wire        data_sram_addr_ok,
+    input  wire        data_sram_data_ok,
     input  wire [31:0] data_sram_rdata,
     // trace debug interface
     output wire [31:0] debug_wb_pc,
@@ -22,6 +41,18 @@ module mycpu_top(
 wire         reset;
 //always @(posedge clk) reset <= ~resetn;
 assign reset = ~resetn;
+
+//exp14之前的端口
+// wire        inst_sram_en;
+// wire        inst_sram_we;
+// wire [31:0] inst_sram_addr;
+// wire [31:0] inst_sram_wdata;
+// wire [31:0] inst_sram_rdata;
+// wire        data_sram_en;
+// wire [ 3:0] data_sram_we;
+// wire [31:0] data_sram_addr;
+// wire [31:0] data_sram_wdata;
+// wire [31:0] data_sram_rdata;
 
 wire ds_allowin;
 wire es_allowin;
@@ -34,10 +65,10 @@ wire ms_to_ws_valid;
 
 wire [64:0] fs_to_ds_bus;
 wire [231:0] ds_to_es_bus;
-wire [142:0] es_to_ms_bus;
+wire [143:0] es_to_ms_bus;
 wire [168:0] ms_to_ws_bus;
 wire [37:0] ws_to_rf_bus;
-wire [32:0] br_bus;
+wire [33:0] br_bus;
 
 wire [4:0] es_to_ds_dest;
 wire [4:0] ms_to_ds_dest;
@@ -59,19 +90,24 @@ wire ms_csr;
 wire ws_csr;
 wire ms_int;
 
+
 IF_stage if_stage(
-    .clk            (clk            ),
-    .reset          (reset          ),
-    .ds_allowin     (ds_allowin     ),
-    .br_bus         (br_bus         ),
-    .fs_to_ds_valid (fs_to_ds_valid ),
-    .fs_to_ds_bus   (fs_to_ds_bus   ),
-    .inst_sram_en   (inst_sram_en   ),
-    .inst_sram_wen  (inst_sram_we  ),
-    .inst_sram_addr (inst_sram_addr ),
-    .inst_sram_wdata(inst_sram_wdata),
-    .inst_sram_rdata(inst_sram_rdata),
-    .ws_reflush_fs_bus(ws_reflush_fs_bus)
+    .clk               (clk            ),
+    .reset             (reset          ),
+    .ds_allowin        (ds_allowin     ),
+    .br_bus            (br_bus         ),
+    .fs_to_ds_valid    (fs_to_ds_valid ),
+    .fs_to_ds_bus      (fs_to_ds_bus   ),
+    .inst_sram_req     (inst_sram_req  ),
+    .inst_sram_wr      (inst_sram_wr   ),  
+    .inst_sram_size    (inst_sram_size ),
+    .inst_sram_addr    (inst_sram_addr ),
+    .inst_sram_wstrb   (inst_sram_wstrb),
+    .inst_sram_wdata   (inst_sram_wdata),
+    .inst_sram_addr_ok (inst_sram_addr_ok),
+    .inst_sram_data_ok (inst_sram_data_ok),
+    .inst_sram_rdata   (inst_sram_rdata),
+    .ws_reflush_fs_bus (ws_reflush_fs_bus)
 );
 
 
@@ -112,10 +148,13 @@ EXE_stage exe_stage(
     .ds_to_es_bus   (ds_to_es_bus   ),
     .es_to_ms_valid (es_to_ms_valid ),
     .es_to_ms_bus   (es_to_ms_bus   ),
-    .data_sram_en   (data_sram_en   ),
-    .data_sram_wen  (data_sram_we   ),
+    .data_sram_req  (data_sram_req  ),
+    .data_sram_wr   (data_sram_wr   ),
+    .data_sram_size (data_sram_size ),
     .data_sram_addr (data_sram_addr ),
+    .data_sram_wstrb(data_sram_wstrb),
     .data_sram_wdata(data_sram_wdata),
+    .data_sram_addr_ok(data_sram_addr_ok),
     .es_to_ds_dest  (es_to_ds_dest  ),
     .es_to_ds_value (es_to_ds_value ),
     .es_value_from_mem (es_value_from_mem),
@@ -135,6 +174,7 @@ MEM_stage mem_stage(
     .ms_to_ws_valid (ms_to_ws_valid ),
     .ms_to_ws_bus   (ms_to_ws_bus   ),
     .data_sram_rdata(data_sram_rdata),
+    .data_sram_data_ok(data_sram_data_ok),
     .ms_to_ds_dest  (ms_to_ds_dest  ),
     .ms_to_ds_value (ms_to_ds_value ),
     .ws_reflush_ms  (ws_reflush_ms),

@@ -9,12 +9,15 @@ module EXE_stage(
     input  [231:0] ds_to_es_bus,
     //to ms
     output        es_to_ms_valid,
-    output [142:0]es_to_ms_bus,
+    output [143:0]es_to_ms_bus,
     // data sram interface
-    output        data_sram_en,
-    output [ 3:0] data_sram_wen,
+    output        data_sram_req,
+    output        data_sram_wr,
+    output [ 1:0] data_sram_size,
     output [31:0] data_sram_addr,
+    output [ 3:0] data_sram_wstrb,
     output [31:0] data_sram_wdata,
+    input         data_sram_addr_ok,
     // to ds:: for data block
     output [ 4:0] es_to_ds_dest,
     output [31:0] es_to_ds_value,
@@ -93,6 +96,8 @@ wire es_rdcntid;
 wire es_rdcntvl;
 wire es_rdcntvh;
 
+reg data_sram_addr_ok_r;  //hk：exp14 有时需要存储data_sram_addr_ok
+
 assign {
     es_rdcntid,         //231:231
     es_rdcntvl,         //230:230
@@ -134,6 +139,7 @@ assign es_mul_result = {32{es_mul_div_op[0]}} & unsigned_prod[31:0]     //mul
 assign es_to_ms_gr_we = es_gr_we & ~(|es_ex_cause_bus_r);
 
 assign es_to_ms_bus = {
+    es_mem_we,          //143:143
     es_rdcntid,         //142:142
     es_ertn,            //141:141
     es_csr_we,          //140:140
@@ -159,11 +165,12 @@ assign es_final_result = es_mul ? es_mul_result :
 
 
 // this inst is to write reg(gr_we) and it's valid!!
-assign es_to_ds_dest = {5{es_gr_we && es_valid}} & es_dest;
+assign es_to_ds_dest  = {5{es_gr_we && es_valid}} & es_dest;
 assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_alu_result;
-assign es_value_from_mem = es_valid && es_res_from_mem;
+assign es_value_from_mem = /*es_valid &&*/ es_res_from_mem; //hk：exp14这里把es_valid注释掉了，但加上的话可能也能通过
 
-assign es_ready_go    = ~(|es_mul_div_op[6:3] && ~(udiv_done || div_done));//1'b1; // 是div指令，且没有done
+assign es_ready_go    = ((es_res_from_mem || es_mem_we) && ~ws_reflush_es) ? ((data_sram_req & data_sram_addr_ok) || data_sram_addr_ok_r)
+                        : ~(|es_mul_div_op[6:3] && ~(udiv_done || div_done));//1'b1; // 是div指令，且没有done
 assign es_allowin     = !es_valid || es_ready_go && ms_allowin;
 assign es_to_ms_valid =  es_valid && es_ready_go && !ws_reflush_es;
 
@@ -289,9 +296,23 @@ assign es_int = es_ex_cause_bus_r[6'h3];
 assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
 assign es_tid = es_rdcntid & es_valid;
 
-assign data_sram_en    = 1'b1;
-assign data_sram_wen   = (es_mem_we && es_valid && !ms_int && !es_int) ? mem_write_strb : 4'h0;
+//hk:exp14
+always @(posedge clk) begin
+    if(reset) 
+        data_sram_addr_ok_r <= 1'b0;
+    else if(data_sram_addr_ok && data_sram_req && !ms_allowin) 
+        data_sram_addr_ok_r <= 1'b1;    
+    else if(ms_allowin) 
+        data_sram_addr_ok_r <= 1'b0;
+end
+
+assign data_sram_req   = (es_res_from_mem || es_mem_we) && es_valid && ~ws_reflush_es && !data_sram_addr_ok_r && ms_allowin;
+assign data_sram_wr    = |data_sram_wstrb;
+assign data_sram_size  = (es_ld_st_op[4] || es_ld_st_op[7]) ? 2'h2
+                        :(es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6]) ? 2'h1
+                        :2'h0;
 assign data_sram_addr  = es_alu_result;
+assign data_sram_wstrb = (es_mem_we && es_valid && !ms_int && !es_int) ? mem_write_strb : 4'h0;
 assign data_sram_wdata = mem_write_data;
 
 endmodule

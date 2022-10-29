@@ -11,7 +11,7 @@ module ID_stage(
     output         ds_to_es_valid,
     output [231:0] ds_to_es_bus,
     //to fs
-    output [32:0]  br_bus,
+    output [33:0]  br_bus,
     //to rf: for write back
     input  [37:0]  ws_to_rf_bus,
     //from latter stages: to cancel an inst by revising ready_go
@@ -53,6 +53,7 @@ wire        rf_we;
 wire [ 4:0] rf_waddr;
 wire [31:0] rf_wdata;
 
+wire        br_stall;
 wire        br_taken;
 wire [31:0] br_target;
 
@@ -482,6 +483,7 @@ assign br_taken = (   inst_beq  &&  rj_eq_rd
                   ) && ds_valid;
 // assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (ds_pc + br_offs) :
 //                                                    /*inst_jirl*/ (rj_value + jirl_offs);
+assign br_stall = (inst_beq||inst_bne||inst_jirl||inst_bl||inst_b||inst_blt||inst_bltu||inst_bge||inst_bgeu) & !ds_ready_go;
 assign br_target = (inst_beq || inst_bne || inst_blt || inst_bge || inst_bltu || inst_bgeu || inst_bl || inst_b) 
                                                     ? (ds_pc + br_offs) :
                                                    /*inst_jirl*/ (rj_value + jirl_offs);
@@ -505,7 +507,7 @@ always @(posedge clk) begin
     end
 end
 
-assign br_bus       = {br_taken,br_target};
+assign br_bus       = {br_stall,br_taken,br_target};
 
 assign alu_src1 = src1_is_pc  ? ds_pc : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
