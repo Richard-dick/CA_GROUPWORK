@@ -42,6 +42,7 @@ wire         reset;
 //always @(posedge clk) reset <= ~resetn;
 assign reset = ~resetn;
 
+
 //exp14之前的端口
 // wire        inst_sram_en;
 // wire        inst_sram_we;
@@ -204,6 +205,6 @@ WB_stage wb_stage(
     .ws_reflush_ms    (ws_reflush_ms),
 
     .has_int          (has_int),
-    .ws_csr         (ws_csr)
+    .ws_csr           (ws_csr)
 );
 endmodule
