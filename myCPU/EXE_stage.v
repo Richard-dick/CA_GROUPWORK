@@ -96,7 +96,7 @@ wire es_rdcntid;
 wire es_rdcntvl;
 wire es_rdcntvh;
 
-reg data_sram_addr_ok_r;  //hk：exp14 有时需要存储data_sram_addr_ok
+reg data_sram_addr_ok_r;
 
 assign {
     es_rdcntid,         //231:231
@@ -167,7 +167,7 @@ assign es_final_result = es_mul ? es_mul_result :
 // this inst is to write reg(gr_we) and it's valid!!
 assign es_to_ds_dest  = {5{es_gr_we && es_valid}} & es_dest;
 assign es_to_ds_value = {32{es_gr_we && es_valid}} & es_alu_result;
-assign es_value_from_mem = /*es_valid &&*/ es_res_from_mem; //hk：exp14这里把es_valid注释掉了，但加上的话可能也能通过
+assign es_value_from_mem = es_valid && es_res_from_mem;
 
 assign es_ready_go    = ((es_res_from_mem || es_mem_we) && ~ws_reflush_es) ? ((data_sram_req & data_sram_addr_ok) || data_sram_addr_ok_r)
                         : ~(|es_mul_div_op[6:3] && ~(udiv_done || div_done));//1'b1; // 是div指令，且没有done
@@ -306,7 +306,7 @@ always @(posedge clk) begin
         data_sram_addr_ok_r <= 1'b0;
 end
 
-assign data_sram_req   = (es_res_from_mem || es_mem_we) && es_valid && ~ws_reflush_es && !data_sram_addr_ok_r && ms_allowin;
+assign data_sram_req   = (es_res_from_mem || es_mem_we) && es_valid && ~ws_reflush_es && !data_sram_addr_ok_r && ms_allowin && !ms_int;  //取回来下一拍的要被cancel
 assign data_sram_wr    = |data_sram_wstrb;
 assign data_sram_size  = (es_ld_st_op[4] || es_ld_st_op[7]) ? 2'h2
                         :(es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6]) ? 2'h1

@@ -45,7 +45,7 @@ wire [31:0] nextpc;
 // 考虑是否跳转
 wire        br_taken;
 wire [31:0] br_target;
-wire        br_stall;  //hk：对应讲义P195中间新增信号
+wire        br_stall;
 
 // whether ADEF exception occurs
 // ADEF exception should happen at pre-IF stage
@@ -62,7 +62,7 @@ wire [31:0] fs_inst;
 reg  [31:0] fs_pc;
 wire        br_taken_cancel;
 
-reg fs_inst_cancel;
+reg [1:0] fs_inst_cancel;
 
 assign {br_stall, br_taken, br_target} = br_bus;
 assign fs_to_ds_bus = {fs_inst, 
@@ -126,19 +126,19 @@ end
 always @(posedge clk) begin
     if(reset) 
         fs_inst_buffer_valid <= 1'b0;
-    else if(!fs_inst_buffer_valid && inst_sram_data_ok && !fs_inst_cancel && !ds_allowin) 
-        fs_inst_buffer_valid <= 1'b1;
     else if (ds_allowin || ws_reflush_fs) 
         fs_inst_buffer_valid <= 1'b0;
-
+    else if(!fs_inst_buffer_valid && inst_sram_data_ok && !(|fs_inst_cancel) && !ds_allowin)  //优先级 错误
+        fs_inst_buffer_valid <= 1'b1;
+    
     if(reset) 
         fs_inst_buffer <= 32'b0;
-    else if(!fs_inst_buffer_valid && inst_sram_data_ok && !fs_inst_cancel && !ds_allowin)
+    else if(!fs_inst_buffer_valid && inst_sram_data_ok && !(|fs_inst_cancel) && !ds_allowin)
         fs_inst_buffer <= inst_sram_rdata;
 end
 
 // IF
-assign fs_ready_go    = (fs_valid && inst_sram_data_ok || fs_inst_buffer_valid) && ~fs_inst_cancel;
+assign fs_ready_go    = (fs_valid && inst_sram_data_ok || fs_inst_buffer_valid) && ~(|fs_inst_cancel);
 assign fs_allowin     = !fs_valid || fs_ready_go && ds_allowin;
 assign fs_to_ds_valid = fs_valid && fs_ready_go && !ws_reflush_fs && (~br_taken || br_stall);
 
@@ -149,7 +149,7 @@ always @(posedge clk) begin
     else if (fs_allowin) begin
         fs_valid <= to_fs_valid;
     end
-    else if(br_taken_cancel || ws_reflush_fs) 
+    else if(br_taken_cancel || ws_reflush_fs)  
         fs_valid <= 1'b0;
 end
 
@@ -165,11 +165,15 @@ end
 //fs_inst_cancel 对应P194方法二
 always @(posedge clk) begin
     if(reset) 
-        fs_inst_cancel <= 1'b0;
-    else if(!fs_allowin && !fs_ready_go && ((ws_reflush_fs) || (br_taken && !br_stall)))
-        fs_inst_cancel <= 1'b1;
-    else if(inst_sram_data_ok)
-        fs_inst_cancel <= 1'b0;
+        fs_inst_cancel <= 2'b00;
+    else if(!fs_allowin && !fs_ready_go && (br_taken && !br_stall))   //优先级 错误
+        fs_inst_cancel <= fs_inst_cancel + 1;
+    else if(!fs_allowin && !fs_ready_go && (ws_reflush_fs))   //优先级 错误
+        fs_inst_cancel <= fs_inst_cancel + 1;
+    else if(inst_sram_data_ok && fs_inst_cancel == 2'b10)
+        fs_inst_cancel <= 2'b01;
+    else if(inst_sram_data_ok && fs_inst_cancel == 2'b01)
+        fs_inst_cancel <= 2'b00;
 end
 
 assign inst_sram_req   = ~reset && fs_allowin;

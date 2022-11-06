@@ -129,6 +129,8 @@ ID_stage id_stage(
     .ms_to_ds_value (ms_to_ds_value ),
     .ws_to_ds_value (ws_to_ds_value ),
     .es_value_from_mem (es_value_from_mem),
+    .ms_to_ds_data_sram_data_ok (ms_to_ds_data_sram_data_ok),
+    .ms_to_ds_res_from_mem (ms_to_ds_res_from_mem),
     .ws_reflush_ds  (ws_reflush_ds),
     .has_int        (has_int),
     // block
@@ -177,6 +179,8 @@ MEM_stage mem_stage(
     .data_sram_data_ok(data_sram_data_ok),
     .ms_to_ds_dest  (ms_to_ds_dest  ),
     .ms_to_ds_value (ms_to_ds_value ),
+    .ms_to_ds_data_sram_data_ok(ms_to_ds_data_sram_data_ok),
+    .ms_to_ds_res_from_mem(ms_to_ds_res_from_mem),
     .ws_reflush_ms  (ws_reflush_ms),
     .ms_int         (ms_int),
     .ms_csr         (ms_csr),

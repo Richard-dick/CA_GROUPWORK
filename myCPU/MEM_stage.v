@@ -16,6 +16,8 @@ module MEM_stage(
     // to ds:: for data block
     output [ 4:0] ms_to_ds_dest,
     output [31:0] ms_to_ds_value,
+    output        ms_to_ds_data_sram_data_ok,
+    output        ms_to_ds_res_from_mem,
     // exception
     input         ws_reflush_ms,
     output        ms_int,
@@ -29,7 +31,7 @@ wire        ms_ready_go;
 
 reg [143:0] es_to_ms_bus_r;
 wire [ 4:0] ms_ld_op;
-wire        ms_mem_we;  //hk：exp14 新增信号，表示MEM阶段的store类指令
+wire        ms_mem_we;
 wire        ms_res_from_mem;
 wire        ms_gr_we;
 wire [ 4:0] ms_dest;
@@ -97,7 +99,7 @@ assign ms_to_ws_bus = {
     };
 
 // this inst is to write reg(gr_we) and it's valid!!
-assign ms_to_ds_dest  = {5{ms_gr_we && ms_valid}} & ms_dest; //P195最下面一行  不对！那么写反而不行，在599w出了bug，改回去反而就好了，奇怪
+assign ms_to_ds_dest  = {5{ms_gr_we && ms_valid}} & ms_dest; 
 assign ms_to_ds_value = {32{ms_gr_we && ms_valid}} & ms_final_result;
 
 assign ms_ready_go    = ((ms_mem_we || ms_res_from_mem) & !ws_reflush_ms) ? data_sram_data_ok : 1'b1;
@@ -140,5 +142,7 @@ assign mem_result = (ms_ld_op[0]) ? ld_b_res  :
 
 assign ms_final_result = ms_res_from_mem ? mem_result
                                          : ms_alu_result;
+assign ms_to_ds_data_sram_data_ok = data_sram_data_ok;
+assign ms_to_ds_res_from_mem = ms_res_from_mem & ms_valid;
 
 endmodule
