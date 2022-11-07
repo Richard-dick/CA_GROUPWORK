@@ -24,6 +24,8 @@ module ID_stage(
     input  [31:0]  ws_to_ds_value,
 
     input          es_value_from_mem,
+    input          ms_to_ds_data_sram_data_ok,
+    input          ms_to_ds_res_from_mem,
     //reflush
     input          ws_reflush_ds,
     //int 
@@ -179,7 +181,9 @@ wire        rf_addr2_raw;
 wire [31:0] rf_addr1_forward;
 wire [31:0] rf_addr2_forward;
 wire        es_ld_cancel;
+wire        ms_ld_cancel;
 wire        es_crash;//说明es阶段的dest和当前写相同，这种情况下，才考虑ready_go调0
+wire        ms_crash;
 wire        csr_block;
 wire        es_csr_block;
 wire        ms_csr_block;
@@ -429,6 +433,7 @@ assign es_crash = (|es_to_ds_dest)
                 && ((rj == es_to_ds_dest)
                 || (rk == es_to_ds_dest)
                 || (rd == es_to_ds_dest));
+assign ms_crash = ~ms_to_ds_data_sram_data_ok;
 
 assign es_csr_block = es_csr && (rf_raddr1 == es_to_ds_dest
                         || rf_raddr2 == es_to_ds_dest);
@@ -538,6 +543,7 @@ assign ds_to_es_bus = {
 };
 
 assign es_ld_cancel = !(es_value_from_mem && es_crash);
+assign ms_ld_cancel = !(ms_to_ds_res_from_mem && ms_crash);
 
 assign csr_block = es_csr_block 
                 | ms_csr_block 
@@ -545,7 +551,7 @@ assign csr_block = es_csr_block
 
 assign tid_block = es_tid_block | ms_tid_block;
 
-assign ds_ready_go    = (es_ld_cancel & (!csr_block) & (!tid_block)) | ws_reflush_ds ;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
+assign ds_ready_go    = (es_ld_cancel & ms_ld_cancel & (!csr_block) & (!tid_block)) | ws_reflush_ds ;//!(rj_is_raw || rk_is_raw || rd_is_raw);//1'b1;
 assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
 assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 

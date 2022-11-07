@@ -16,6 +16,8 @@ module MEM_stage(
     // to ds:: for data block
     output [ 4:0] ms_to_ds_dest,
     output [31:0] ms_to_ds_value,
+    output        ms_to_ds_data_sram_data_ok,
+    output        ms_to_ds_res_from_mem,
     // exception
     input         ws_reflush_ms,
     output        ms_int,
@@ -140,5 +142,8 @@ assign mem_result = (ms_ld_op[0]) ? ld_b_res  :
 
 assign ms_final_result = ms_res_from_mem ? mem_result
                                          : ms_alu_result;
+
+assign ms_to_ds_data_sram_data_ok = data_sram_data_ok;
+assign ms_to_ds_res_from_mem = ms_res_from_mem & ms_valid;
 
 endmodule
