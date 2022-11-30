@@ -10,70 +10,70 @@ module tlb
     parameter TLBNUM = 16
 )
 (
-    input clk,
+    input wire clk,
     // * 双端口设计, 分别为指令和访存设计, 支持流水线高速运转.
     // ! 指令端口
-    input  [              18:0] s0_vppn,        // * 来自访存虚地址[31:13]
-    input                       s0_va_bit12,    // * 来自访存虚地址的第12位
-    input  [               9:0] s0_asid,        // * 来自CSR.ASID的ASID域
-    output                      s0_found,       // ! 判定是否产生异常
-    output [$clog2(TLBNUM)-1:0] s0_index,       // * 索引位, 标识, 命中第几项, 其信息填入到CSR.TLBIDX中
-    output [              19:0] s0_ppn,         // ! 和ps一起用于产生最后的实地址
-    output [               5:0] s0_ps,
-    output [               1:0] s0_plv,
-    output [               1:0] s0_mat,         
-    output                      s0_d,
-    output                      s0_v,
+    input wire  [              18:0] s0_vppn,        // * 来自访存虚地址[31:13]
+    input wire                       s0_va_bit12,    // * 来自访存虚地址的第12位
+    input wire  [               9:0] s0_asid,        // * 来自CSR.ASID的ASID域
+    output wire                      s0_found,       // ! 判定是否产生异常
+    output wire [$clog2(TLBNUM)-1:0] s0_index,       // * 索引位, 标识, 命中第几项, 其信息填入到CSR.TLBIDX中
+    output wire [              19:0] s0_ppn,         // ! 和ps一起用于产生最后的实地址
+    output wire [               5:0] s0_ps,
+    output wire [               1:0] s0_plv,
+    output wire [               1:0] s0_mat,         
+    output wire                      s0_d,
+    output wire                      s0_v,
     // ! 访存端口
-    input  [              18:0] s1_vppn,
-    input                       s1_va_bit12,
-    input  [               9:0] s1_asid,
-    output                      s1_found,
-    output [$clog2(TLBNUM)-1:0] s1_index,
-    output [              19:0] s1_ppn,
-    output [               5:0] s1_ps,
-    output [               1:0] s1_plv,
-    output [               1:0] s1_mat,
-    output                      s1_d,
-    output                      s1_v,
+    input wire  [              18:0] s1_vppn,
+    input wire                       s1_va_bit12,
+    input wire  [               9:0] s1_asid,
+    output wire                      s1_found,
+    output wire [$clog2(TLBNUM)-1:0] s1_index,
+    output wire [              19:0] s1_ppn,
+    output wire [               5:0] s1_ps,
+    output wire [               1:0] s1_plv,
+    output wire [               1:0] s1_mat,
+    output wire                      s1_d,
+    output wire                      s1_v,
     // 清楚无效的TLB表项指令 支持
-    input                       invtlb_valid,
-    input  [               4:0] invtlb_op,
+    input wire                       invtlb_valid,
+    input wire  [               4:0] invtlb_op,
     // * 支持TLBWR和TLBFILL指令
-    input                       we, 
-    input  [$clog2(TLBNUM)-1:0] w_index,
-    input                       w_e,
-    input  [               5:0] w_ps,
-    input  [              18:0] w_vppn,
-    input  [               9:0] w_asid,
-    input                       w_g,
-    input  [              19:0] w_ppn0,
-    input  [               1:0] w_plv0,
-    input  [               1:0] w_mat0,
-    input                       w_d0,
-    input                       w_v0,
-    input  [              19:0] w_ppn1,
-    input  [               1:0] w_plv1,
-    input  [               1:0] w_mat1,
-    input                       w_d1,
-    input                       w_v1,
+    input wire                       we, 
+    input wire  [$clog2(TLBNUM)-1:0] w_index,
+    input wire                       w_e,
+    input wire  [               5:0] w_ps,
+    input wire  [              18:0] w_vppn,
+    input wire  [               9:0] w_asid,
+    input wire                       w_g,
+    input wire  [              19:0] w_ppn0,
+    input wire  [               1:0] w_plv0,
+    input wire  [               1:0] w_mat0,
+    input wire                       w_d0,
+    input wire                       w_v0,
+    input wire  [              19:0] w_ppn1,
+    input wire  [               1:0] w_plv1,
+    input wire  [               1:0] w_mat1,
+    input wire                       w_d1,
+    input wire                       w_v1,
     // 支持TLB读指令
-    input  [$clog2(TLBNUM)-1:0] r_index,
-    output                      r_e,
-    output [              18:0] r_vppn,
-    output [               5:0] r_ps,
-    output [               9:0] r_asid,
-    output                      r_g,
-    output [              19:0] r_ppn0,
-    output [               1:0] r_plv0,
-    output [               1:0] r_mat0,
-    output                      r_d0,
-    output                      r_v0,
-    output [              19:0] r_ppn1,     
-    output [               1:0] r_plv1,
-    output [               1:0] r_mat1,
-    output                      r_d1,
-    output                      r_v1
+    input wire  [$clog2(TLBNUM)-1:0] r_index,
+    output wire                      r_e,
+    output wire [              18:0] r_vppn,
+    output wire [               5:0] r_ps,
+    output wire [               9:0] r_asid,
+    output wire                      r_g,
+    output wire [              19:0] r_ppn0,
+    output wire [               1:0] r_plv0,
+    output wire [               1:0] r_mat0,
+    output wire                      r_d0,
+    output wire                      r_v0,
+    output wire [              19:0] r_ppn1,     
+    output wire [               1:0] r_plv1,
+    output wire [               1:0] r_mat1,
+    output wire                      r_d1,
+    output wire                      r_v1
 );
 // var declaration
     reg [TLBNUM-1:0] tlb_e;

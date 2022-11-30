@@ -6,10 +6,10 @@ module MEM_stage(
     output        ms_allowin    ,
     //from es
     input         es_to_ms_valid,
-    input [143:0] es_to_ms_bus  ,
+    input [148:0] es_to_ms_bus  ,
     //to ws
     output        ms_to_ws_valid,
-    output [168:0]ms_to_ws_bus  ,
+    output [173:0]ms_to_ws_bus  ,
     //from data-sram
     input  [31:0] data_sram_rdata,
     input         data_sram_data_ok,
@@ -29,7 +29,7 @@ module MEM_stage(
 reg         ms_valid;
 wire        ms_ready_go;
 
-reg [143:0] es_to_ms_bus_r;
+reg [148:0] es_to_ms_bus_r;
 wire [ 4:0] ms_ld_op;
 wire        ms_mem_we;
 wire        ms_res_from_mem;
@@ -54,9 +54,14 @@ assign ms_int = ms_valid & // valid stage
                 ( ms_ertn // ertn happened or
                 | (|ms_ex_cause_bus) // there are some exception causes
                 );
-assign ms_vaddr = ms_alu_result;
+// !exp19:: 进行一个选择
+assign ms_vaddr = ms_ex_cause_bus[12]? ms_pc : ms_alu_result;
+
+// exp18
+wire [4:0] tlb_bus;
 
 assign {
+    tlb_bus,            //148:144
     ms_mem_we,          //143:143
     ms_rdcntid,         //142:142
     ms_ertn,            //141:141
@@ -84,6 +89,7 @@ wire [ 1:0] ld_vaddr;
 wire [31:0] ms_final_result;
 
 assign ms_to_ws_bus = {
+    tlb_bus,            //173:169
     ms_rdcntid,         //168:168 
     ms_vaddr,           //167:136
     ms_ertn,            //135:135

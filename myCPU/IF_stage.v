@@ -1,4 +1,8 @@
-module IF_stage(
+module IF_stage
+#(
+    parameter TLBNUM = 16
+)
+(
     input         clk,
     input         reset,
     //allwoin
@@ -7,7 +11,7 @@ module IF_stage(
     input  [33:0] br_bus,
     //to ds
     output        fs_to_ds_valid,
-    output [64:0] fs_to_ds_bus,
+    output [69:0] fs_to_ds_bus,
     // inst sram interface
     output        inst_sram_req,
     output        inst_sram_wr,
@@ -17,9 +21,23 @@ module IF_stage(
     output [31:0] inst_sram_wdata,
     input         inst_sram_addr_ok,
     input         inst_sram_data_ok,
-    input  [31:0] inst_sram_rdata,
+    input [31:0]  inst_sram_rdata,
     // reflush
-    input  [32:0] ws_reflush_fs_bus
+    input [32:0] ws_reflush_fs_bus,
+        // 从ws阶段传来的4*32的value线
+    input [127:0] ws_to_fs_bus,
+
+    output [              18:0] s0_vppn,
+    output                      s0_va_bit12,
+    output [               9:0] s0_asid,
+    input                       s0_found,
+    input  [$clog2(TLBNUM)-1:0] s0_index,
+    input  [              19:0] s0_ppn,
+    input  [               5:0] s0_ps,
+    input  [               1:0] s0_plv,
+    input  [               1:0] s0_mat,
+    input                       s0_d,
+    input                       s0_v
 );
 
 reg         fs_valid;
@@ -47,10 +65,7 @@ wire        br_taken;
 wire [31:0] br_target;
 wire        br_stall;
 
-// whether ADEF exception occurs
-// ADEF exception should happen at pre-IF stage
-wire is_ex_adef;
-assign is_ex_adef = (nextpc[1:0] != 2'b00);
+
 
 // jump to sepc
 wire ws_reflush_fs;
@@ -63,11 +78,13 @@ reg  [31:0] fs_pc;
 wire        br_taken_cancel;
 
 reg [1:0] fs_inst_cancel;
-
+wire [ 5:0] tlb_ex_bus;
+wire is_ex_adef;
 assign {br_stall, br_taken, br_target} = br_bus;
-assign fs_to_ds_bus = {fs_inst, 
-                       fs_pc, 
-                       is_ex_adef};     // 将ADEF异常判断信号传到ID阶段，
+assign fs_to_ds_bus = { tlb_ex_bus,
+                        fs_inst, 
+                        fs_pc, 
+                        is_ex_adef};     // 将ADEF异常判断信号传到ID阶段，
                                         // 再由ex_cause_bus统一搭载传递至WB阶段
 assign br_taken_cancel = ds_allowin && br_taken;
 
@@ -179,10 +196,48 @@ end
 assign inst_sram_req   = ~reset && fs_allowin;
 assign inst_sram_wr    = 1'h0;
 assign inst_sram_size  = 2'h2;
-assign inst_sram_addr  = nextpc;
+// assign inst_sram_addr  = nextpc;
 assign inst_sram_wstrb = 4'h0;
 assign inst_sram_wdata = 32'h0;
 
 assign fs_inst = fs_inst_buffer_valid ? fs_inst_buffer : inst_sram_rdata;
 
+
+wire [31:0] csr_asid_rvalue;
+wire [31:0] csr_crmd_rvalue;
+wire [31:0] csr_dmw0_rvalue;
+wire [31:0] csr_dmw1_rvalue;
+assign {csr_crmd_rvalue, csr_dmw0_rvalue, csr_dmw1_rvalue, csr_asid_rvalue} = ws_to_fs_bus;
+
+vaddr_transfer inst_transfer(
+    .va        (nextpc),
+    .inst_op   (3'b001),// 三类输入{load.store,inst}
+    .pa        (inst_sram_addr),
+    .tlb_ex_bus(tlb_ex_bus),//{PME,PPI,PIS,PIL,PIF,TLBR}
+    // tlb:: 和s0连接
+    .s_vppn    (s0_vppn),
+    .s_va_bit12(s0_va_bit12),
+    .s_asid    (s0_asid),
+    .s_found   (s0_found),
+    .s_index   (s0_index),
+    .s_ppn     (s0_ppn),
+    .s_ps      (s0_ps),
+    .s_plv     (s0_plv),
+    .s_mat     (s0_mat),
+    .s_d       (s0_d),
+    .s_v       (s0_v),
+    // crmd:: 读入csr中信息做判断
+    .csr_asid  (csr_asid_rvalue),
+    .csr_crmd  (csr_crmd_rvalue),
+    // crmd:: 读入csr中信息做判断
+    .dmw_hit   (dmw_hit),
+    .csr_dmw0  (csr_dmw0_rvalue),
+    .csr_dmw1  (csr_dmw1_rvalue)
+);
+
+// whether ADEF exception occurs
+// ADEF exception should happen at pre-IF stage
+
+
+assign is_ex_adef = (nextpc[1:0] != 2'b00) || (nextpc[31] & (csr_crmd_rvalue[1:0]!=0)) & ~dmw_hit;
 endmodule

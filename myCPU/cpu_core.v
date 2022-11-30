@@ -1,4 +1,8 @@
-module cpu_core(
+module cpu_core
+#(
+    parameter TLBNUM = 16
+)
+(
     input  wire        clk,
     input  wire        resetn,
 
@@ -56,10 +60,10 @@ wire ds_to_es_valid;
 wire es_to_ms_valid;
 wire ms_to_ws_valid;
 
-wire [64:0] fs_to_ds_bus;
-wire [231:0] ds_to_es_bus;
-wire [143:0] es_to_ms_bus;
-wire [168:0] ms_to_ws_bus;
+wire [69:0] fs_to_ds_bus;
+wire [241:0] ds_to_es_bus;
+wire [148:0] es_to_ms_bus;
+wire [173:0] ms_to_ws_bus;
 wire [37:0] ws_to_rf_bus;
 wire [33:0] br_bus;
 
@@ -85,24 +89,112 @@ wire ms_int;
 
 wire ms_to_ds_data_sram_data_ok;
 
+// ! exp18
+// 新加的, 和TLB相连的端口:: 端口作用详见tlb.v
+// ! 指令端口
+wire [              18:0]    s0_vppn;
+wire                         s0_va_bit12;
+wire [               9:0]    s0_asid;
+wire                         s0_found;
+wire [$clog2(TLBNUM)-1:0]    s0_index;
+wire [              19:0]    s0_ppn;
+wire [               5:0]    s0_ps;
+wire [               1:0]    s0_plv;
+wire [               1:0]    s0_mat;
+wire                         s0_d;
+wire                         s0_v;
+// ! 访存端口
+wire  [              18:0]   s1_vppn;
+wire                         s1_va_bit12;
+wire  [               9:0]   s1_asid;
+wire                         s1_found;
+wire [$clog2(TLBNUM)-1:0]    s1_index;
+wire [              19:0]    s1_ppn;
+wire [               5:0]    s1_ps;
+wire [               1:0]    s1_plv;
+wire [               1:0]    s1_mat;
+wire                         s1_d;
+wire                         s1_v;
+// 清除无效的TLB表项指令 支持
+wire                         invtlb_valid;
+wire  [               4:0]   invtlb_op;
+// * 支持TLBWR和TLBFILL指令
+wire                         we;
+wire  [$clog2(TLBNUM)-1:0]   w_index;
+wire                         w_e;
+wire  [               5:0]   w_ps;
+wire  [              18:0]   w_vppn;
+wire  [               9:0]   w_asid;
+wire                         w_g;
+wire  [              19:0]   w_ppn0;
+wire  [               1:0]   w_plv0;
+wire  [               1:0]   w_mat0;
+wire                         w_d0;
+wire                         w_v0;
+wire  [              19:0]   w_ppn1;
+wire  [               1:0]   w_plv1;
+wire  [               1:0]   w_mat1;
+wire                         w_d1;
+wire                         w_v1;
+// 支持TLB读指令
+wire  [$clog2(TLBNUM)-1:0]   r_index;
+wire                         r_e;
+wire [              18:0]    r_vppn;
+wire [               5:0]    r_ps;
+wire [               9:0]    r_asid;
+wire                         r_g;
+wire [              19:0]    r_ppn0;
+wire [               1:0]    r_plv0;
+wire [               1:0]    r_mat0;
+wire                         r_d0;
+wire                         r_v0;
+wire [              19:0]    r_ppn1;     
+wire [               1:0]    r_plv1;
+wire [               1:0]    r_mat1;
+wire                         r_d1;
+wire                         r_v1;
+
+// exe和wb的csr, srch交互
+wire [63:0] to_es_tlb_bus;
+wire [38:0] to_ws_csr_bus;
+
+// id--> if is tlb inst
+wire is_tlb;
+
+// exp19
+wire [127:0] ws_to_fs_bus;
+wire [159:0] ws_to_es_bus;
 
 IF_stage if_stage(
-    .clk               (clk            ),
-    .reset             (reset          ),
-    .ds_allowin        (ds_allowin     ),
-    .br_bus            (br_bus         ),
-    .fs_to_ds_valid    (fs_to_ds_valid ),
-    .fs_to_ds_bus      (fs_to_ds_bus   ),
-    .inst_sram_req     (inst_sram_req  ),
-    .inst_sram_wr      (inst_sram_wr   ),  
-    .inst_sram_size    (inst_sram_size ),
-    .inst_sram_addr    (inst_sram_addr ),
-    .inst_sram_wstrb   (inst_sram_wstrb),
-    .inst_sram_wdata   (inst_sram_wdata),
-    .inst_sram_addr_ok (inst_sram_addr_ok),
-    .inst_sram_data_ok (inst_sram_data_ok),
-    .inst_sram_rdata   (inst_sram_rdata),
-    .ws_reflush_fs_bus (ws_reflush_fs_bus)
+    .clk                (clk            ),
+    .reset              (reset          ),
+    .ds_allowin         (ds_allowin     ),
+    .br_bus             (br_bus         ),
+    .fs_to_ds_valid     (fs_to_ds_valid ),
+    .fs_to_ds_bus       (fs_to_ds_bus   ),
+    .inst_sram_req      (inst_sram_req  ),
+    .inst_sram_wr       (inst_sram_wr   ),  
+    .inst_sram_size     (inst_sram_size ),
+    .inst_sram_addr     (inst_sram_addr ),
+    .inst_sram_wstrb    (inst_sram_wstrb),
+    .inst_sram_wdata    (inst_sram_wdata),
+    .inst_sram_addr_ok  (inst_sram_addr_ok),
+    .inst_sram_data_ok  (inst_sram_data_ok),
+    .inst_sram_rdata    (inst_sram_rdata),
+    .ws_reflush_fs_bus  (ws_reflush_fs_bus),
+    .ws_to_fs_bus       (ws_to_fs_bus),
+    // connect with TLB
+    .s0_vppn            (s0_vppn        ),
+    .s0_va_bit12        (s0_va_bit12    ),
+    .s0_asid            (s0_asid        ),
+    .s0_found           (s0_fount       ),
+    .s0_index           (s0_index       ),
+    .s0_ppn             (s0_ppn         ),  
+    .s0_ps              (s0_ps          ),
+    .s0_plv             (s0_plv         ),
+    .s0_mat             (s0_mat         ),
+    .s0_d               (s0_d           ),
+    .s0_v               (s0_v           )
 );
 
 
@@ -133,7 +225,8 @@ ID_stage id_stage(
     .ms_csr         (ms_csr),
     .ws_csr         (ws_csr),
     .es_tid         (es_tid),
-    .ms_tid         (ms_tid)
+    .ms_tid         (ms_tid),
+    .is_tlb         (is_tlb)
 );
 
 EXE_stage exe_stage(
@@ -158,7 +251,27 @@ EXE_stage exe_stage(
     .ws_reflush_es  (ws_reflush_es),
     .ms_int         (ms_int),
     .es_csr         (es_csr),
-    .es_tid         (es_tid)
+    .es_tid         (es_tid),
+    // TLB
+    .s1_vppn       (s1_vppn        ),
+    .s1_va_bit12   (s1_va_bit12    ),
+    .s1_asid       (s1_asid        ),
+    .s1_found      (s1_found       ),
+    .s1_index      (s1_index       ),
+    .s1_ppn        (s1_ppn         ),
+    .s1_ps         (s1_ps          ),
+    .s1_plv        (s1_plv         ),
+    .s1_mat        (s1_mat         ),
+    .s1_d          (s1_d           ),
+    .s1_v          (s1_v           ),
+    // 清楚无效的TLB表项指令 in EXE
+    .invtlb_valid  (invtlb_valid   ),
+    .invtlb_op     (invtlb_op      ),
+    // exe和wb的csr, srch交互
+    // .to_es_tlb_bus (to_es_tlb_bus  ),
+    .to_ws_csr_bus (to_ws_csr_bus  ),
+    .ws_to_es_bus       (ws_to_es_bus),
+    .is_tlb             (is_tlb         )
 );
 
 MEM_stage mem_stage(
@@ -202,7 +315,115 @@ WB_stage wb_stage(
     .ws_reflush_es    (ws_reflush_es),
     .ws_reflush_ms    (ws_reflush_ms),
 
+    .ws_to_fs_bus       (ws_to_fs_bus),
+    .ws_to_es_bus       (ws_to_es_bus),
+
     .has_int          (has_int),
-    .ws_csr           (ws_csr)
+    .ws_csr           (ws_csr),
+    // * 支持TLBWR和TLBFILL指令 in WB
+    .we            (we             ),
+    .w_index       (w_index        ),
+    .w_e           (w_e            ),
+    .w_ps          (w_ps           ),
+    .w_vppn        (w_vppn         ),
+    .w_asid        (w_asid         ),
+    .w_g           (w_g            ),
+    .w_ppn0        (w_ppn0         ),
+    .w_plv0        (w_plv0         ),
+    .w_mat0        (w_mat0         ),
+    .w_d0          (w_d0           ),
+    .w_v0          (w_v0           ),
+    .w_ppn1        (w_ppn1         ),
+    .w_plv1        (w_plv1         ),
+    .w_mat1        (w_mat1         ),
+    .w_d1          (w_d1           ),
+    .w_v1          (w_v1           ),
+    // 支持TLB读指令 in WB
+    .r_index       (r_index        ),
+    .r_e           (r_e            ),
+    .r_vppn        (r_vppn         ),
+    .r_ps          (r_ps           ),
+    .r_asid        (r_asid         ),
+    .r_g           (r_g            ),
+    .r_ppn0        (r_ppn0         ),
+    .r_plv0        (r_plv0         ),
+    .r_mat0        (r_mat0         ),
+    .r_d0          (r_d0           ),
+    .r_v0          (r_v0           ),
+    .r_ppn1        (r_ppn1         ),
+    .r_plv1        (r_plv1         ),
+    .r_mat1        (r_mat1         ),
+    .r_d1          (r_d1           ),
+    .r_v1          (r_v1           ),
+    // exe和wb的csr, srch交互
+    // .to_es_tlb_bus (to_es_tlb_bus  ),
+    .to_ws_csr_bus (to_ws_csr_bus  )
 );
+
+tlb tlb(
+    .clk           (clk            ),
+    // ! 指令端口, in IF
+    .s0_vppn       (s0_vppn        ),
+    .s0_va_bit12   (s0_va_bit12    ),
+    .s0_asid       (s0_asid        ),
+    .s0_found      (s0_fount       ),
+    .s0_index      (s0_index       ),
+    .s0_ppn        (s0_ppn         ),  
+    .s0_ps         (s0_ps          ),
+    .s0_plv        (s0_plv         ),
+    .s0_mat        (s0_mat         ),
+    .s0_d          (s0_d           ),
+    .s0_v          (s0_v           ),
+    // ! 访存端口 in EXE
+    .s1_vppn       (s1_vppn        ),
+    .s1_va_bit12   (s1_va_bit12    ),
+    .s1_asid       (s1_asid        ),
+    .s1_found      (s1_found       ),
+    .s1_index      (s1_index       ),
+    .s1_ppn        (s1_ppn         ),
+    .s1_ps         (s1_ps          ),
+    .s1_plv        (s1_plv         ),
+    .s1_mat        (s1_mat         ),
+    .s1_d          (s1_d           ),
+    .s1_v          (s1_v           ),
+    // 清楚无效的TLB表项指令 in EXE
+    .invtlb_valid  (invtlb_valid   ),
+    .invtlb_op     (invtlb_op      ),
+    // * 支持TLBWR和TLBFILL指令 in WB
+    .we            (we             ), 
+    .w_index       (w_index        ),
+    .w_e           (w_e            ),
+    .w_ps          (w_ps           ),
+    .w_vppn        (w_vppn         ),
+    .w_asid        (w_asid         ),
+    .w_g           (w_g            ),
+    .w_ppn0        (w_ppn0         ),
+    .w_plv0        (w_plv0         ),
+    .w_mat0        (w_mat0         ),
+    .w_d0          (w_d0           ),
+    .w_v0          (w_v0           ),
+    .w_ppn1        (w_ppn1         ),
+    .w_plv1        (w_plv1         ),
+    .w_mat1        (w_mat1         ),
+    .w_d1          (w_d1           ),
+    .w_v1          (w_v1           ),
+    // 支持TLB读指令 in WB
+    .r_index       (r_index        ),
+    .r_e           (r_e            ),
+    .r_vppn        (r_vppn         ),
+    .r_ps          (r_ps           ),
+    .r_asid        (r_asid         ),
+    .r_g           (r_g            ),
+    .r_ppn0        (r_ppn0         ),
+    .r_plv0        (r_plv0         ),
+    .r_mat0        (r_mat0         ),
+    .r_d0          (r_d0           ),
+    .r_v0          (r_v0           ),
+    .r_ppn1        (r_ppn1         ),     
+    .r_plv1        (r_plv1         ),
+    .r_mat1        (r_mat1         ),
+    .r_d1          (r_d1           ),
+    .r_v1          (r_v1           )
+);
+
 endmodule

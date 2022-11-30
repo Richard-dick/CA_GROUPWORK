@@ -6,10 +6,10 @@ module ID_stage(
     output         ds_allowin,
     //from fs
     input          fs_to_ds_valid,
-    input  [64:0]  fs_to_ds_bus,
+    input  [69:0]  fs_to_ds_bus,
     //to es
     output         ds_to_es_valid,
-    output [231:0] ds_to_es_bus,
+    output [241:0] ds_to_es_bus,
     //to fs
     output [33:0]  br_bus,
     //to rf: for write back
@@ -36,13 +36,15 @@ module ID_stage(
     input          ws_csr,
     // tid_block
     input          es_tid,
-    input          ms_tid
+    input          ms_tid,
+    // tlb伪异常
+    input is_tlb
 );
 
 reg         ds_valid;
 wire        ds_ready_go;
 
-reg  [64:0] fs_to_ds_bus_r;
+reg  [69:0] fs_to_ds_bus_r;
 
 wire [31:0] ds_inst;
 wire [31:0] ds_pc;
@@ -174,6 +176,8 @@ wire [16:0] ex_cause_bus;
 // exp13 - exception judgment logic signals
 wire ex_adef;       // 取指地址错 (由fs_to_ex_bus搭载)
 wire ex_ine;        // 指令不存在
+// exp18 - pseudo-exception, 下一条是tlb
+// wire ex_tlb;
 
 // data block signal
 wire        rf_addr1_raw;
@@ -202,6 +206,16 @@ wire rj_ge_rd;
 wire rj_l_rd_u;
 wire rj_ge_rd_u;
 
+// exp18 tlb相关指令
+wire inst_tlbsrch;
+wire inst_tlbrd;
+wire inst_tlbwr;
+wire inst_tlbfill;
+wire inst_invtlb;
+wire invtlb_ine;
+wire [4:0] invtlb_op;
+
+
 assign op_31_26  = ds_inst[31:26];
 assign op_25_22  = ds_inst[25:22];
 assign op_21_20  = ds_inst[21:20];
@@ -210,6 +224,7 @@ assign op_19_15  = ds_inst[19:15];
 assign rd   = ds_inst[ 4: 0];
 assign rj   = ds_inst[ 9: 5];
 assign rk   = ds_inst[14:10];
+assign invtlb_op = ds_inst[ 4: 0];
 
 assign i12  = ds_inst[21:10];
 assign i20  = ds_inst[24: 5];
@@ -287,12 +302,22 @@ assign inst_rdcntid_w = inst_rdcnt && inst_rdcntid_w_tail;
 assign inst_rdcntvl_w = inst_rdcnt && inst_rdcntvl_w_tail;
 assign inst_rdcntvh_w = inst_rdcnt && inst_rdcntvh_w_tail;
 
+// exp18 tlb_inst decoder
+assign inst_tlbsrch   = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & (rk == 5'b01010) & ~|rj & ~|rd;
+assign inst_tlbrd     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & (rk == 5'b01011) & ~|rj & ~|rd;
+assign inst_tlbwr     = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & (rk == 5'b01100) & ~|rj & ~|rd;
+assign inst_tlbfill   = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & (rk == 5'b01101) & ~|rj & ~|rd;
+assign inst_invtlb    = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h13] ;
+assign invtlb_ine     = inst_invtlb && (invtlb_op >= 7);
+
+// assign is_tlb = inst_tlbrd | inst_tlbwr | inst_tlbfill | inst_invtlb;
+
 assign rdcntvh = inst_rdcntvh_w;
 assign rdcntvl = inst_rdcntvl_w;
 assign rdcntid = inst_rdcntid_w;
 
-assign csr_we       = inst_csr_wr | inst_csr_xchg;
-assign csr_rd       = inst_csr_rd | inst_csr_xchg | inst_csr_wr;
+assign csr_we       = (inst_csr_wr | inst_csr_xchg) && ds_valid;
+assign csr_rd       = (inst_csr_rd | inst_csr_xchg | inst_csr_wr) && ds_valid;
 assign csr_wmask    = inst_csr_xchg ? rj_value : 32'hffffffff;
 assign csr_num = inst_ertn ? 14'h6 : rdcntid ? 14'h40 : ds_inst[23:10];
 
@@ -310,21 +335,38 @@ assign ex_ine = ~(inst_add_w || inst_addi_w || inst_and || inst_andi ||
                 inst_sll || inst_slli_w || inst_slt || inst_slti || inst_sltu || inst_sltui ||
                 inst_sra || inst_srai_w || inst_srl || inst_srli_w || 
                 inst_st_b || inst_st_h || inst_st_w || inst_sub_w || inst_syscall ||
-                inst_xor || inst_xori || inst_rdcntid_w || inst_rdcntvh_w || inst_rdcntvl_w);
+                inst_xor || inst_xori || inst_rdcntid_w || inst_rdcntvh_w || inst_rdcntvl_w ||
+                inst_tlbsrch || inst_tlbrd || inst_tlbwr || inst_tlbfill || inst_invtlb);
 
+// exp19 临时线
+wire [ 5:0] tlb_ex_bus;// 其使命在这一段开摆
 // 自己好好商讨bus中的位置和相关信息，位宽是足够的。
 // 目前bus中搭载的异常标志约定如下：
 // 0: INT           1: SYSCALL      2: ADEF
 // 3: ALE           4: BRK          5: INE
-// 6-16: (RESERVED)
-assign ex_cause_bus[16:6] = 15'b0;
+// 6: PME           7: PPI          8: PIS
+// 9: PIL           a: PIF          b: TLBR
+// c: IF or EXE 用来标志是if阶段的地址错, 还是mem阶段地址错, 1表示若出错, 就是IF错, 否则就是MEM错的
+// d: ADEM错, 虽然不知道为什么会错, 但是从上一届来看, plv!=0时, 访存最高位不能为1, 挺奇怪的
+// 14-15: (RESERVED)
+// 16: pseudo-exception for tlb-inst
+assign ex_cause_bus[15:13] = 3'b0;
 assign ex_cause_bus[6'h0/*INT    */] = ds_valid & has_int;
 assign ex_cause_bus[6'h1/*SYSCALL*/] = ds_valid & inst_syscall;
-// TODO: add ID stage exception causes
 assign ex_cause_bus[6'h2/*ADEF   */] = ds_valid & ex_adef;
 // (ALE exception will be generated at EXE stage)
 assign ex_cause_bus[6'h4/*BRK    */] = ds_valid & inst_break;
-assign ex_cause_bus[6'h5/*INE    */] = ds_valid & ex_ine;
+assign ex_cause_bus[6'h5/*INE    */] = ds_valid & (ex_ine || invtlb_ine);
+// ! tlb_ex_bus::{PME,PPI,PIS,PIL,PIF,TLBR} 具体见vaddr_trans.v:53
+assign ex_cause_bus[6'h6/*PME    */] = ds_valid & tlb_ex_bus[5];
+assign ex_cause_bus[6'h7/*PPI    */] = ds_valid & tlb_ex_bus[4];
+assign ex_cause_bus[6'h8/*PIS    */] = ds_valid & tlb_ex_bus[3];
+assign ex_cause_bus[6'h9/*PIL    */] = ds_valid & tlb_ex_bus[2];
+assign ex_cause_bus[6'ha/*PIF    */] = ds_valid & tlb_ex_bus[1];
+assign ex_cause_bus[6'hb/*TLBR   */] = ds_valid & tlb_ex_bus[0];
+assign ex_cause_bus[6'hc/*IForMEM*/] = ds_valid & (ex_adef || (|tlb_ex_bus));
+
+assign ex_cause_bus[6'h10          ] = ds_valid & (is_tlb);
 
 
 assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_b | inst_ld_bu | inst_ld_h 
@@ -420,7 +462,8 @@ assign dst_is_r1     = inst_bl;
 // NOTE: NEWLY ADDED INSTRUCTION MAY DISENABLE GR_WE
 assign gr_we         = ~inst_st_b & ~inst_st_h & ~inst_st_w
                      & ~inst_beq & ~inst_bne & ~inst_blt 
-                     & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_b;
+                     & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_b
+                     & ~inst_tlbsrch & ~inst_tlbrd & ~inst_tlbwr & ~inst_tlbfill &~inst_invtlb;
 assign mem_we        = inst_st_b | inst_st_h | inst_st_w;
 assign dest          = dst_is_r1 ? 5'd1 : rdcntid ? rj : rd;
 
@@ -435,12 +478,14 @@ assign es_crash = (|es_to_ds_dest)
                 || (rd == es_to_ds_dest));
 assign ms_crash = ~ms_to_ds_data_sram_data_ok;
 
-assign es_csr_block = es_csr && (rf_raddr1 == es_to_ds_dest
-                        || rf_raddr2 == es_to_ds_dest);
-assign ms_csr_block = ms_csr && (rf_raddr1 == ms_to_ds_dest
-                        || rf_raddr2 == ms_to_ds_dest);
-assign ws_csr_block = ws_csr && (rf_raddr1 == ws_to_ds_dest
-                        || rf_raddr2 == ws_to_ds_dest);
+
+// exp18:: lzh: 简化逻辑, 只要es,ms,ws三个阶段中有csr读写指令, 就直接阻塞掉
+assign es_csr_block = es_csr/* && (rf_raddr1 == es_to_ds_dest
+                        || rf_raddr2 == es_to_ds_dest)*/;
+assign ms_csr_block = ms_csr /*&& (rf_raddr1 == ms_to_ds_dest
+                        || rf_raddr2 == ms_to_ds_dest)*/;
+assign ws_csr_block = ws_csr /*&& (rf_raddr1 == ws_to_ds_dest
+                        || rf_raddr2 == ws_to_ds_dest)*/;
 
 assign es_tid_block = es_tid && (rf_raddr1 == es_to_ds_dest
                         || rf_raddr2 == es_to_ds_dest);
@@ -517,7 +562,13 @@ assign br_bus       = {br_stall,br_taken,br_target};
 assign alu_src1 = src1_is_pc  ? ds_pc : rj_value;
 assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
+// exp18 临时线
+wire [4:0] tlb_bus = {inst_tlbsrch, inst_tlbrd, inst_tlbwr, inst_tlbfill, inst_invtlb};
+
+
 assign ds_to_es_bus = {
+    tlb_bus,        //241:237
+    invtlb_op,      //236:232
     rdcntid,        //231:231
     rdcntvl,        //230:230
     rdcntvh,        //229:229 
@@ -555,7 +606,8 @@ assign ds_ready_go    = (!es_ld_cancel & !ms_ld_cancel & (!csr_block) & (!tid_bl
 assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
 assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
 
-assign {ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
+assign {tlb_ex_bus, ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
+// assign ex_tlb = fs_to_ds_bus[0];
 
 assign {rf_we   ,  //37:37
         rf_waddr,  //36:32
