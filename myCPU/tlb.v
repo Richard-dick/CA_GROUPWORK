@@ -131,148 +131,21 @@ module tlb
 
 
 // ! TLB-match区
-    // generate // ! 用来对比TLB表项, 生成两个match regs
-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
-    //     begin: __TLB_compare
-    //         assign match0[tlb_index] = // ! 虚拟地址对上 + 页数对上 + asid对上 + exist
-    //             (s0_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
-    //            && (tlb_ps4MB[tlb_index] || s0_vppn[9:0]==tlb_vppn[tlb_index][9:0])
-    //            && (s0_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
+        generate // ! 用来对比TLB表项, 生成两个match regs
+        for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
+        begin: __TLB_compare
+                assign match0[tlb_index] = // ! 虚拟地址对上 + 页数对上 + asid对上 + exist
+                (s0_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
+                && (tlb_ps4MB[tlb_index] || s0_vppn[9:0]==tlb_vppn[tlb_index][9:0])
+                && (s0_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
 
-    //         assign match1[tlb_index] = 
-    //             (s1_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
-    //            && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0])
-    //            && (s1_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
-    //     end
-    // endgenerate
-    assign match0[0] =
-            (s0_vppn[18:10] == tlb_vppn[0][18:10]) && tlb_e[0]
-            && (tlb_ps4MB[0] || s0_vppn[9:0]==tlb_vppn[0][9:0])
-            && (s0_asid == tlb_asid[0] || tlb_g[0]);
-    assign match0[1] =
-            (s0_vppn[18:10] == tlb_vppn[1][18:10]) && tlb_e[1]
-            && (tlb_ps4MB[1] || s0_vppn[9:0]==tlb_vppn[1][9:0])
-            && (s0_asid == tlb_asid[1] || tlb_g[1]);
-    assign match0[2] =
-            (s0_vppn[18:10] == tlb_vppn[2][18:10]) && tlb_e[2]
-            && (tlb_ps4MB[2] || s0_vppn[9:0]==tlb_vppn[2][9:0])
-            && (s0_asid == tlb_asid[2] || tlb_g[2]);
-    assign match0[3] =
-            (s0_vppn[18:10] == tlb_vppn[3][18:10]) && tlb_e[3]
-            && (tlb_ps4MB[3] || s0_vppn[9:0]==tlb_vppn[3][9:0])
-            && (s0_asid == tlb_asid[3] || tlb_g[3]);
-    assign match0[4] =
-            (s0_vppn[18:10] == tlb_vppn[4][18:10]) && tlb_e[4]
-            && (tlb_ps4MB[4] || s0_vppn[9:0]==tlb_vppn[4][9:0])
-            && (s0_asid == tlb_asid[4] || tlb_g[4]);
-    assign match0[5] =
-            (s0_vppn[18:10] == tlb_vppn[5][18:10]) && tlb_e[5]
-            && (tlb_ps4MB[5] || s0_vppn[9:0]==tlb_vppn[5][9:0])
-            && (s0_asid == tlb_asid[5] || tlb_g[5]);
-    assign match0[6] =
-            (s0_vppn[18:10] == tlb_vppn[6][18:10]) && tlb_e[6]
-            && (tlb_ps4MB[6] || s0_vppn[9:0]==tlb_vppn[6][9:0])
-            && (s0_asid == tlb_asid[6] || tlb_g[6]);
-    assign match0[7] =
-            (s0_vppn[18:10] == tlb_vppn[7][18:10]) && tlb_e[7]
-            && (tlb_ps4MB[7] || s0_vppn[9:0]==tlb_vppn[7][9:0])
-            && (s0_asid == tlb_asid[7] || tlb_g[7]);
-    assign match0[8] =
-            (s0_vppn[18:10] == tlb_vppn[8][18:10]) && tlb_e[8]
-            && (tlb_ps4MB[8] || s0_vppn[9:0]==tlb_vppn[8][9:0])
-            && (s0_asid == tlb_asid[8] || tlb_g[8]);
-    assign match0[9] =
-            (s0_vppn[18:10] == tlb_vppn[9][18:10]) && tlb_e[9]
-            && (tlb_ps4MB[9] || s0_vppn[9:0]==tlb_vppn[9][9:0])
-            && (s0_asid == tlb_asid[9] || tlb_g[9]);
-    assign match0[10] =
-            (s0_vppn[18:10] == tlb_vppn[10][18:10]) && tlb_e[10]
-            && (tlb_ps4MB[10] || s0_vppn[9:0]==tlb_vppn[10][9:0])
-            && (s0_asid == tlb_asid[10] || tlb_g[10]);
-    assign match0[11] =
-            (s0_vppn[18:10] == tlb_vppn[11][18:10]) && tlb_e[11]
-            && (tlb_ps4MB[11] || s0_vppn[9:0]==tlb_vppn[11][9:0])
-            && (s0_asid == tlb_asid[11] || tlb_g[11]);
-    assign match0[12] =
-            (s0_vppn[18:10] == tlb_vppn[12][18:10]) && tlb_e[12]
-            && (tlb_ps4MB[12] || s0_vppn[9:0]==tlb_vppn[12][9:0])
-            && (s0_asid == tlb_asid[12] || tlb_g[12]);
-    assign match0[13] =
-            (s0_vppn[18:10] == tlb_vppn[13][18:10]) && tlb_e[13]
-            && (tlb_ps4MB[13] || s0_vppn[9:0]==tlb_vppn[13][9:0])
-            && (s0_asid == tlb_asid[13] || tlb_g[13]);
-    assign match0[14] =
-            (s0_vppn[18:10] == tlb_vppn[14][18:10]) && tlb_e[14]
-            && (tlb_ps4MB[14] || s0_vppn[9:0]==tlb_vppn[14][9:0])
-            && (s0_asid == tlb_asid[14] || tlb_g[14]);
-    assign match0[15] =
-            (s0_vppn[18:10] == tlb_vppn[15][18:10]) && tlb_e[15]
-            && (tlb_ps4MB[15] || s0_vppn[9:0]==tlb_vppn[15][9:0])
-            && (s0_asid == tlb_asid[15] || tlb_g[15]);
-    assign match1[0] =
-            (s1_vppn[18:10] == tlb_vppn[0][18:10]) && tlb_e[0]
-            && (tlb_ps4MB[0] || s1_vppn[9:0]==tlb_vppn[0][9:0])
-            && (s1_asid == tlb_asid[0] || tlb_g[0]);
-    assign match1[1] =
-            (s1_vppn[18:10] == tlb_vppn[1][18:10]) && tlb_e[1]
-            && (tlb_ps4MB[1] || s1_vppn[9:0]==tlb_vppn[1][9:0])
-            && (s1_asid == tlb_asid[1] || tlb_g[1]);
-    assign match1[2] =
-            (s1_vppn[18:10] == tlb_vppn[2][18:10]) && tlb_e[2]
-            && (tlb_ps4MB[2] || s1_vppn[9:0]==tlb_vppn[2][9:0])
-            && (s1_asid == tlb_asid[2] || tlb_g[2]);
-    assign match1[3] =
-            (s1_vppn[18:10] == tlb_vppn[3][18:10]) && tlb_e[3]
-            && (tlb_ps4MB[3] || s1_vppn[9:0]==tlb_vppn[3][9:0])
-            && (s1_asid == tlb_asid[3] || tlb_g[3]);
-    assign match1[4] =
-            (s1_vppn[18:10] == tlb_vppn[4][18:10]) && tlb_e[4]
-            && (tlb_ps4MB[4] || s1_vppn[9:0]==tlb_vppn[4][9:0])
-            && (s1_asid == tlb_asid[4] || tlb_g[4]);
-    assign match1[5] =
-            (s1_vppn[18:10] == tlb_vppn[5][18:10]) && tlb_e[5]
-            && (tlb_ps4MB[5] || s1_vppn[9:0]==tlb_vppn[5][9:0])
-            && (s1_asid == tlb_asid[5] || tlb_g[5]);
-    assign match1[6] =
-            (s1_vppn[18:10] == tlb_vppn[6][18:10]) && tlb_e[6]
-            && (tlb_ps4MB[6] || s1_vppn[9:0]==tlb_vppn[6][9:0])
-            && (s1_asid == tlb_asid[6] || tlb_g[6]);
-    assign match1[7] =
-            (s1_vppn[18:10] == tlb_vppn[7][18:10]) && tlb_e[7]
-            && (tlb_ps4MB[7] || s1_vppn[9:0]==tlb_vppn[7][9:0])
-            && (s1_asid == tlb_asid[7] || tlb_g[7]);
-    assign match1[8] =
-            (s1_vppn[18:10] == tlb_vppn[8][18:10]) && tlb_e[8]
-            && (tlb_ps4MB[8] || s1_vppn[9:0]==tlb_vppn[8][9:0])
-            && (s1_asid == tlb_asid[8] || tlb_g[8]);
-    assign match1[9] =
-            (s1_vppn[18:10] == tlb_vppn[9][18:10]) && tlb_e[9]
-            && (tlb_ps4MB[9] || s1_vppn[9:0]==tlb_vppn[9][9:0])
-            && (s1_asid == tlb_asid[9] || tlb_g[9]);
-    assign match1[10] =
-            (s1_vppn[18:10] == tlb_vppn[10][18:10]) && tlb_e[10]
-            && (tlb_ps4MB[10] || s1_vppn[9:0]==tlb_vppn[10][9:0])
-            && (s1_asid == tlb_asid[10] || tlb_g[10]);
-    assign match1[11] =
-            (s1_vppn[18:10] == tlb_vppn[11][18:10]) && tlb_e[11]
-            && (tlb_ps4MB[11] || s1_vppn[9:0]==tlb_vppn[11][9:0])
-            && (s1_asid == tlb_asid[11] || tlb_g[11]);
-    assign match1[12] =
-            (s1_vppn[18:10] == tlb_vppn[12][18:10]) && tlb_e[12]
-            && (tlb_ps4MB[12] || s1_vppn[9:0]==tlb_vppn[12][9:0])
-            && (s1_asid == tlb_asid[12] || tlb_g[12]);
-    assign match1[13] =
-            (s1_vppn[18:10] == tlb_vppn[13][18:10]) && tlb_e[13]
-            && (tlb_ps4MB[13] || s1_vppn[9:0]==tlb_vppn[13][9:0])
-            && (s1_asid == tlb_asid[13] || tlb_g[13]);
-    assign match1[14] =
-            (s1_vppn[18:10] == tlb_vppn[14][18:10]) && tlb_e[14]
-            && (tlb_ps4MB[14] || s1_vppn[9:0]==tlb_vppn[14][9:0])
-            && (s1_asid == tlb_asid[14] || tlb_g[14]);
-    assign match1[15] =
-            (s1_vppn[18:10] == tlb_vppn[15][18:10]) && tlb_e[15]
-            && (tlb_ps4MB[15] || s1_vppn[9:0]==tlb_vppn[15][9:0])
-            && (s1_asid == tlb_asid[15] || tlb_g[15]);
+                assign match1[tlb_index] = 
+                (s1_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
+                && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0])
+                && (s1_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
+        end
+        endgenerate
+
     // 是否found
     assign s0_found = |match0;
     assign s1_found = |match1;
@@ -308,192 +181,33 @@ module tlb
  * 0x6:: 清除G=1, ASID等于寄存器指定ASID的页表项, 且VA一致的页表项
  ! 综合考虑, 共有3种组合项
  */
-    // generate // * 首先得到匹配的表项
-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
-    //     begin: __flush_TLB_prepare
-    //         // ! 三项分别代表, G==1; asid对应; va一致(也就是虚拟页表对应, 要么)
-    //         assign attr[tlb_index][0] = tlb_g[tlb_index];
-    //         assign attr[tlb_index][1] = s1_asid == tlb_asid[tlb_index];
-    //         assign attr[tlb_index][2] = (s1_vppn[18:10]==tlb_vppn[tlb_index][18:10]) // 高位必须一一对应
-    //            && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0]); // 低位则当4KB时, 才需要一一对应
+    generate // * 首先得到匹配的表项
+        for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
+        begin: __flush_TLB_prepare
+            // ! 三项分别代表, G==1; asid对应; va一致(也就是虚拟页表对应, 要么)
+            assign attr[tlb_index][0] = tlb_g[tlb_index];
+            assign attr[tlb_index][1] = s1_asid == tlb_asid[tlb_index];
+            assign attr[tlb_index][2] = (s1_vppn[18:10]==tlb_vppn[tlb_index][18:10]) // 高位必须一一对应
+               && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0]); // 低位则当4KB时, 才需要一一对应
 
-    //         assign inv_match[tlb_index] = ((invtlb_op==0||invtlb_op==1) & 1'b1)  // all
-    //                                      ||((invtlb_op==2) & (attr[tlb_index][0]))  // G = 1
-    //                                      ||((invtlb_op==3) & (!attr[tlb_index][0]))  // G = 0
-    //                                      ||((invtlb_op==4) & (!attr[tlb_index][0]) & (attr[tlb_index][1])) // G=0, ASID一致
-    //                                      ||((invtlb_op==5) & (!attr[tlb_index][0]) & attr[tlb_index][1] & attr[tlb_index][2])
-    //                                      ||((invtlb_op==6) & (attr[tlb_index][0] | attr[tlb_index][1]) & attr[tlb_index][2]);
-    //       end
-    // endgenerate              
-    assign attr[0][0] = tlb_g[0];
-    assign attr[0][1] = s1_asid == tlb_asid[0];
-    assign attr[0][2] = (s1_vppn[18:10]==tlb_vppn[0][18:10])
-        && (tlb_ps4MB[0] || s1_vppn[9:0]==tlb_vppn[0][ 9: 0]);
-    assign inv_match[0] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[0][0]))
-                        ||((invtlb_op==3) & (!attr[0][0]))
-                        ||((invtlb_op==4) & (!attr[0][0]) & (attr[0][1]))
-                        ||((invtlb_op==5) & (!attr[0][0]) & attr[0][1] & attr[0][2])
-                        ||((invtlb_op==6) & (attr[0][0] | attr[0][1]) & attr[0][2]);
-    assign attr[1][0] = tlb_g[1];
-    assign attr[1][1] = s1_asid == tlb_asid[1];
-    assign attr[1][2] = (s1_vppn[18:10]==tlb_vppn[1][18:10])
-        && (tlb_ps4MB[1] || s1_vppn[9:0]==tlb_vppn[1][ 9: 0]);
-    assign inv_match[1] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[1][0]))
-                        ||((invtlb_op==3) & (!attr[1][0]))
-                        ||((invtlb_op==4) & (!attr[1][0]) & (attr[1][1]))
-                        ||((invtlb_op==5) & (!attr[1][0]) & attr[1][1] & attr[1][2])
-                        ||((invtlb_op==6) & (attr[1][0] | attr[1][1]) & attr[1][2]);
-    assign attr[2][0] = tlb_g[2];
-    assign attr[2][1] = s1_asid == tlb_asid[2];
-    assign attr[2][2] = (s1_vppn[18:10]==tlb_vppn[2][18:10])
-        && (tlb_ps4MB[2] || s1_vppn[9:0]==tlb_vppn[2][ 9: 0]);
-    assign inv_match[2] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[2][0]))
-                        ||((invtlb_op==3) & (!attr[2][0]))
-                        ||((invtlb_op==4) & (!attr[2][0]) & (attr[2][1]))
-                        ||((invtlb_op==5) & (!attr[2][0]) & attr[2][1] & attr[2][2])
-                        ||((invtlb_op==6) & (attr[2][0] | attr[2][1]) & attr[2][2]);
-    assign attr[3][0] = tlb_g[3];
-    assign attr[3][1] = s1_asid == tlb_asid[3];
-    assign attr[3][2] = (s1_vppn[18:10]==tlb_vppn[3][18:10])
-        && (tlb_ps4MB[3] || s1_vppn[9:0]==tlb_vppn[3][ 9: 0]);
-    assign inv_match[3] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[3][0]))
-                        ||((invtlb_op==3) & (!attr[3][0]))
-                        ||((invtlb_op==4) & (!attr[3][0]) & (attr[3][1]))
-                        ||((invtlb_op==5) & (!attr[3][0]) & attr[3][1] & attr[3][2])
-                        ||((invtlb_op==6) & (attr[3][0] | attr[3][1]) & attr[3][2]);
-    assign attr[4][0] = tlb_g[4];
-    assign attr[4][1] = s1_asid == tlb_asid[4];
-    assign attr[4][2] = (s1_vppn[18:10]==tlb_vppn[4][18:10])
-        && (tlb_ps4MB[4] || s1_vppn[9:0]==tlb_vppn[4][ 9: 0]);
-    assign inv_match[4] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[4][0]))
-                        ||((invtlb_op==3) & (!attr[4][0]))
-                        ||((invtlb_op==4) & (!attr[4][0]) & (attr[4][1]))
-                        ||((invtlb_op==5) & (!attr[4][0]) & attr[4][1] & attr[4][2])
-                        ||((invtlb_op==6) & (attr[4][0] | attr[4][1]) & attr[4][2]);
-    assign attr[5][0] = tlb_g[5];
-    assign attr[5][1] = s1_asid == tlb_asid[5];
-    assign attr[5][2] = (s1_vppn[18:10]==tlb_vppn[5][18:10])
-        && (tlb_ps4MB[5] || s1_vppn[9:0]==tlb_vppn[5][ 9: 0]);
-    assign inv_match[5] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[5][0]))
-                        ||((invtlb_op==3) & (!attr[5][0]))
-                        ||((invtlb_op==4) & (!attr[5][0]) & (attr[5][1]))
-                        ||((invtlb_op==5) & (!attr[5][0]) & attr[5][1] & attr[5][2])
-                        ||((invtlb_op==6) & (attr[5][0] | attr[5][1]) & attr[5][2]);
-    assign attr[6][0] = tlb_g[6];
-    assign attr[6][1] = s1_asid == tlb_asid[6];
-    assign attr[6][2] = (s1_vppn[18:10]==tlb_vppn[6][18:10])
-        && (tlb_ps4MB[6] || s1_vppn[9:0]==tlb_vppn[6][ 9: 0]);
-    assign inv_match[6] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[6][0]))
-                        ||((invtlb_op==3) & (!attr[6][0]))
-                        ||((invtlb_op==4) & (!attr[6][0]) & (attr[6][1]))
-                        ||((invtlb_op==5) & (!attr[6][0]) & attr[6][1] & attr[6][2])
-                        ||((invtlb_op==6) & (attr[6][0] | attr[6][1]) & attr[6][2]);
-    assign attr[7][0] = tlb_g[7];
-    assign attr[7][1] = s1_asid == tlb_asid[7];
-    assign attr[7][2] = (s1_vppn[18:10]==tlb_vppn[7][18:10])
-        && (tlb_ps4MB[7] || s1_vppn[9:0]==tlb_vppn[7][ 9: 0]);
-    assign inv_match[7] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[7][0]))
-                        ||((invtlb_op==3) & (!attr[7][0]))
-                        ||((invtlb_op==4) & (!attr[7][0]) & (attr[7][1]))
-                        ||((invtlb_op==5) & (!attr[7][0]) & attr[7][1] & attr[7][2])
-                        ||((invtlb_op==6) & (attr[7][0] | attr[7][1]) & attr[7][2]);
-    assign attr[8][0] = tlb_g[8];
-    assign attr[8][1] = s1_asid == tlb_asid[8];
-    assign attr[8][2] = (s1_vppn[18:10]==tlb_vppn[8][18:10])
-        && (tlb_ps4MB[8] || s1_vppn[9:0]==tlb_vppn[8][ 9: 0]);
-    assign inv_match[8] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[8][0]))
-                        ||((invtlb_op==3) & (!attr[8][0]))
-                        ||((invtlb_op==4) & (!attr[8][0]) & (attr[8][1]))
-                        ||((invtlb_op==5) & (!attr[8][0]) & attr[8][1] & attr[8][2])
-                        ||((invtlb_op==6) & (attr[8][0] | attr[8][1]) & attr[8][2]);
-    assign attr[9][0] = tlb_g[9];
-    assign attr[9][1] = s1_asid == tlb_asid[9];
-    assign attr[9][2] = (s1_vppn[18:10]==tlb_vppn[9][18:10])
-        && (tlb_ps4MB[9] || s1_vppn[9:0]==tlb_vppn[9][ 9: 0]);
-    assign inv_match[9] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[9][0]))
-                        ||((invtlb_op==3) & (!attr[9][0]))
-                        ||((invtlb_op==4) & (!attr[9][0]) & (attr[9][1]))
-                        ||((invtlb_op==5) & (!attr[9][0]) & attr[9][1] & attr[9][2])
-                        ||((invtlb_op==6) & (attr[9][0] | attr[9][1]) & attr[9][2]);
-    assign attr[10][0] = tlb_g[10];
-    assign attr[10][1] = s1_asid == tlb_asid[10];
-    assign attr[10][2] = (s1_vppn[18:10]==tlb_vppn[10][18:10])
-        && (tlb_ps4MB[10] || s1_vppn[9:0]==tlb_vppn[10][ 9: 0]);
-    assign inv_match[10] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[10][0]))
-                        ||((invtlb_op==3) & (!attr[10][0]))
-                        ||((invtlb_op==4) & (!attr[10][0]) & (attr[10][1]))
-                        ||((invtlb_op==5) & (!attr[10][0]) & attr[10][1] & attr[10][2])
-                        ||((invtlb_op==6) & (attr[10][0] | attr[10][1]) & attr[10][2]);
-    assign attr[11][0] = tlb_g[11];
-    assign attr[11][1] = s1_asid == tlb_asid[11];
-    assign attr[11][2] = (s1_vppn[18:10]==tlb_vppn[11][18:10])
-        && (tlb_ps4MB[11] || s1_vppn[9:0]==tlb_vppn[11][ 9: 0]);
-    assign inv_match[11] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[11][0]))
-                        ||((invtlb_op==3) & (!attr[11][0]))
-                        ||((invtlb_op==4) & (!attr[11][0]) & (attr[11][1]))
-                        ||((invtlb_op==5) & (!attr[11][0]) & attr[11][1] & attr[11][2])
-                        ||((invtlb_op==6) & (attr[11][0] | attr[11][1]) & attr[11][2]);
-    assign attr[12][0] = tlb_g[12];
-    assign attr[12][1] = s1_asid == tlb_asid[12];
-    assign attr[12][2] = (s1_vppn[18:10]==tlb_vppn[12][18:10])
-        && (tlb_ps4MB[12] || s1_vppn[9:0]==tlb_vppn[12][ 9: 0]);
-    assign inv_match[12] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[12][0]))
-                        ||((invtlb_op==3) & (!attr[12][0]))
-                        ||((invtlb_op==4) & (!attr[12][0]) & (attr[12][1]))
-                        ||((invtlb_op==5) & (!attr[12][0]) & attr[12][1] & attr[12][2])
-                        ||((invtlb_op==6) & (attr[12][0] | attr[12][1]) & attr[12][2]);
-    assign attr[13][0] = tlb_g[13];
-    assign attr[13][1] = s1_asid == tlb_asid[13];
-    assign attr[13][2] = (s1_vppn[18:10]==tlb_vppn[13][18:10])
-        && (tlb_ps4MB[13] || s1_vppn[9:0]==tlb_vppn[13][ 9: 0]);
-    assign inv_match[13] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[13][0]))
-                        ||((invtlb_op==3) & (!attr[13][0]))
-                        ||((invtlb_op==4) & (!attr[13][0]) & (attr[13][1]))
-                        ||((invtlb_op==5) & (!attr[13][0]) & attr[13][1] & attr[13][2])
-                        ||((invtlb_op==6) & (attr[13][0] | attr[13][1]) & attr[13][2]);
-    assign attr[14][0] = tlb_g[14];
-    assign attr[14][1] = s1_asid == tlb_asid[14];
-    assign attr[14][2] = (s1_vppn[18:10]==tlb_vppn[14][18:10])
-        && (tlb_ps4MB[14] || s1_vppn[9:0]==tlb_vppn[14][ 9: 0]);
-    assign inv_match[14] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[14][0]))
-                        ||((invtlb_op==3) & (!attr[14][0]))
-                        ||((invtlb_op==4) & (!attr[14][0]) & (attr[14][1]))
-                        ||((invtlb_op==5) & (!attr[14][0]) & attr[14][1] & attr[14][2])
-                        ||((invtlb_op==6) & (attr[14][0] | attr[14][1]) & attr[14][2]);
-    assign attr[15][0] = tlb_g[15];
-    assign attr[15][1] = s1_asid == tlb_asid[15];
-    assign attr[15][2] = (s1_vppn[18:10]==tlb_vppn[15][18:10])
-        && (tlb_ps4MB[15] || s1_vppn[9:0]==tlb_vppn[15][ 9: 0]);
-    assign inv_match[15] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
-                        ||((invtlb_op==2) & (attr[15][0]))
-                        ||((invtlb_op==3) & (!attr[15][0]))
-                        ||((invtlb_op==4) & (!attr[15][0]) & (attr[15][1]))
-                        ||((invtlb_op==5) & (!attr[15][0]) & attr[15][1] & attr[15][2])
-                        ||((invtlb_op==6) & (attr[15][0] | attr[15][1]) & attr[15][2]);       
-    // generate // ! 用来产生写入信息
-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index = tlb_index+1)
-    //     begin: __inv_TLB
-    //         always @(posedge clk ) begin
-    //             if(inv_match[tlb_index] & invtlb_valid)
-    //                 tlb_e[tlb_index] <= 1'b0;
-    //         end
-    //    end 
-    // endgenerate
+            assign inv_match[tlb_index] = ((invtlb_op==0||invtlb_op==1) & 1'b1)  // all
+                                         ||((invtlb_op==2) & (attr[tlb_index][0]))  // G = 1
+                                         ||((invtlb_op==3) & (!attr[tlb_index][0]))  // G = 0
+                                         ||((invtlb_op==4) & (!attr[tlb_index][0]) & (attr[tlb_index][1])) // G=0, ASID一致
+                                         ||((invtlb_op==5) & (!attr[tlb_index][0]) & attr[tlb_index][1] & attr[tlb_index][2])
+                                         ||((invtlb_op==6) & (attr[tlb_index][0] | attr[tlb_index][1]) & attr[tlb_index][2]);
+          end
+    endgenerate              
+
+//     always @(posedge clk ) begin // ! 用来产生写入信息
+//         generate 
+//             for(tlb_index = 0; tlb_index < TLBNUM; tlb_index = tlb_index+1)
+//             begin: __inv_TLB
+//                 if(inv_match[tlb_index] & invtlb_valid)
+//                     tlb_e[tlb_index] <= 1'b0;
+//             end 
+//         endgenerate
+//     end
 
     always @(posedge clk ) begin
         if(inv_match[0] & invtlb_valid)
@@ -536,6 +250,8 @@ module tlb
 // ! 写端口
     always @(posedge clk) begin
         if (we) begin :__TLB_Write
+
+        //     tlb_e[w_index] <= w_e;
             
             tlb_ps4MB[w_index]  <= (w_ps==6'd22);
             tlb_vppn[w_index]   <= w_vppn;

@@ -1,0 +1,1120 @@
+From 4d13b4e9d58d2c1bae649b08c779173e601e54f9 Mon Sep 17 00:00:00 2001
+From: liziheng <liziheng20@mails.ucas.ac.cn>
+Date: Thu, 1 Dec 2022 16:33:38 +0800
+Subject: [PATCH] exp19
+
+---
+ CSR.v         |  45 +++++-
+ EXE_stage.v   | 105 ++++++++++----
+ ID_stage.v    |  27 +++-
+ IF_stage.v    |  63 +++++++--
+ MEM_stage.v   |   3 +-
+ WB_stage.v    |  39 ++++--
+ cpu_core.v    |  15 +-
+ tlb.v         | 368 ++++++--------------------------------------------
+ vaddr_trans.v |  75 ++++++++++
+ 9 files changed, 354 insertions(+), 386 deletions(-)
+ create mode 100644 vaddr_trans.v
+
+diff --git a/CSR.v b/CSR.v
+index 8222b53..b7c9171 100644
+--- a/CSR.v
++++ b/CSR.v
+@@ -28,6 +28,8 @@
+     `define CSR_CRMD_IE       2
+     `define CSR_CRMD_DA       3
+     `define CSR_CRMD_PG       4 
++    `define CSR_CRMD_DATF     6 :5
++    `define CSR_CRMD_DATM     8 :7
+     `define CSR_PRMD_PPLV     1 :0
+     `define CSR_PRMD_PIE      2
+     `define CSR_ECFG_LIE      12:0
+@@ -117,6 +119,8 @@ module csr(
+     input  [31: 0] csr_tlbelo1_wvalue,
+     input  [31: 0] csr_asid_wvalue,
+ 
++    output [31: 0] csr_tlbrentry_rvalue,
++
+     output [31: 0] csr_tlbidx_rvalue,
+     output [31: 0] csr_tlbehi_rvalue,
+     output [31: 0] csr_tlbelo0_rvalue,
+@@ -134,6 +138,8 @@ module csr(
+     reg          csr_crmd_ie;
+     reg          csr_crmd_da;
+     reg          csr_crmd_pg;
++    reg  [ 1: 0] csr_crmd_datf;
++    reg  [ 1: 0] csr_crmd_datm;
+ 
+ // PRMD
+     reg  [ 1: 0] csr_prmd_pplv;
+@@ -216,7 +222,7 @@ module csr(
+ 
+ // TLBRENTRY
+     reg  [31: 6] csr_tlbrentry_pa;
+-    wire [31: 0] csr_tlbrentry_rvalue;
++    // wire [31: 0] csr_tlbrentry_rvalue;
+ 
+ // ASID
+     reg  [9 : 0] csr_asid_asid;
+@@ -240,8 +246,6 @@ always @(posedge clk) begin
+     if (reset) begin
+         csr_crmd_plv <= 2'b0;
+         csr_crmd_ie <= 1'b0;
+-        csr_crmd_da <= 1'b1;
+-        csr_crmd_pg <= 1'b0;
+     end
+     else if (ws_ex) begin
+         csr_crmd_plv <= 2'b0;
+@@ -256,9 +260,40 @@ always @(posedge clk) begin
+                     | ~csr_wmask[`CSR_CRMD_PLV] & csr_crmd_plv;
+         csr_crmd_ie <= csr_wmask[`CSR_PRMD_PIE] & csr_wvalue[`CSR_PRMD_PIE]
+                     | ~csr_wmask[`CSR_PRMD_PIE] & csr_crmd_ie;
++        
++    end
++end
++
++always @(posedge clk ) begin
++    if(reset) begin
++        csr_crmd_da <= 1'b1;
++        csr_crmd_pg <= 1'b0;
++        csr_crmd_datf <= 2'b0;
++        csr_crmd_datm <= 2'b0;
++    end
++    else if(ws_ex && ws_ecode == 6'h3f) begin
++        csr_crmd_da <= 1'b1;
++        csr_crmd_pg <= 1'b0;
+     end
++    else if(ertn && csr_estat_ecode == 6'b111111) begin
++        csr_crmd_da <= 1'b0;
++        csr_crmd_pg <= 1'b1;
++        // csr_crmd_datf <= 2'b01;
++        // csr_crmd_datm <= 2'b01;
++    end
++    else if(csr_we && csr_num == `CSR_CRMD) begin
++        csr_crmd_da <= csr_wmask[`CSR_CRMD_DA] & csr_wvalue[`CSR_CRMD_DA]
++                    | ~csr_wmask[`CSR_CRMD_DA] & csr_crmd_da;
++        csr_crmd_pg <= csr_wmask[`CSR_CRMD_PG] & csr_wvalue[`CSR_CRMD_PG]
++                    | ~csr_wmask[`CSR_CRMD_PG] & csr_crmd_pg;
++        csr_crmd_datf <= csr_wmask[`CSR_CRMD_DATF] & csr_wvalue[`CSR_CRMD_DATF]
++                    | ~csr_wmask[`CSR_CRMD_DATF] & csr_crmd_datf;
++        csr_crmd_datm <= csr_wmask[`CSR_CRMD_DATM] & csr_wvalue[`CSR_CRMD_DATM]
++                    | ~csr_wmask[`CSR_CRMD_DATM] & csr_crmd_datm;
++    end 
+ end
+ 
++
+ //PRMD: PPLV & IE
+ always @(posedge clk) begin
+     if(ws_ex) begin
+@@ -633,9 +668,11 @@ end
+ // default
+ // assign csr_crmd_da = 1'b1;
+ // assign csr_crmd_pg = 1'b1;
++// assign csr_crmd_datf = 2'b00;
++// assign csr_crmd_datm = 2'b00;
+ 
+ // read out value select
+-assign csr_crmd_rvalue      = {27'b0, csr_crmd_pg, csr_crmd_da, csr_crmd_ie, csr_crmd_plv};
++assign csr_crmd_rvalue      = {23'b0, csr_crmd_datm, csr_crmd_datf, csr_crmd_pg, csr_crmd_da, csr_crmd_ie, csr_crmd_plv};
+ assign csr_prmd_rvalue      = {29'b0, csr_prmd_pie, csr_prmd_pplv};
+ assign csr_ecfg_rvalue      = {19'b0, csr_ecfg_lie};
+ assign csr_estat_rvalue     = {1'b0, csr_estat_esubcode, csr_estat_ecode, 3'b0, csr_estat_is};
+diff --git a/EXE_stage.v b/EXE_stage.v
+index 59931ae..b0e8d85 100644
+--- a/EXE_stage.v
++++ b/EXE_stage.v
+@@ -49,8 +49,9 @@ module EXE_stage
+     output                      invtlb_valid,
+     output [               4:0] invtlb_op,
+     // 从WB阶段的csr传回来的数据
+-    input  [63:0] to_es_tlb_bus, 
++    // input  [63:0] to_es_tlb_bus, 
+     output [38:0] to_ws_csr_bus,
++    input [159:0] ws_to_es_bus,
+     // 传给id阶段的重取信号
+     output is_tlb
+ );
+@@ -92,6 +93,8 @@ wire [16:0] es_ex_cause_bus;
+ wire es_ertn;
+ wire es_int;
+ 
++wire [ 5:0] tlb_ex_bus;
++
+ // stable counter for rdcntv{l/h}.w [lxy]
+ reg [63:0] stable_cnt;
+ always @(posedge clk) begin
+@@ -313,21 +316,6 @@ assign mem_write_data = es_ld_st_op[5] ? {4{rkd_value[ 7:0]}} :
+                         es_ld_st_op[6] ? {2{rkd_value[15:0]}} :
+                                             rkd_value[31:0];
+ 
+-// generate ALE exception signal
+-// here st_vaddr acts both as st_vaddr and ld_vaddr, 
+-// because we must fully generate ALE exception signal at this stage
+-assign es_ex_cause_bus_r[6'h3/*ALE*/] = ((st_vaddr[0] != 1'b0) && 
+-                                         (es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6])) ||
+-                                        ((st_vaddr[1:0] != 2'b00) &&
+-                                         (es_ld_st_op[4] || es_ld_st_op[7]));
+-assign es_ex_cause_bus_r[16:4] = es_ex_cause_bus[16:4];
+-assign es_ex_cause_bus_r[ 2:0] = es_ex_cause_bus[ 2:0];
+-
+-assign es_int = es_ex_cause_bus_r[6'h3];
+-
+-assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
+-assign es_tid = es_rdcntid & es_valid;
+-
+ //hk:exp14
+ always @(posedge clk) begin
+     if(reset) 
+@@ -338,12 +326,12 @@ always @(posedge clk) begin
+         data_sram_addr_ok_r <= 1'b0;
+ end
+ 
+-assign data_sram_req   = (es_res_from_mem || es_mem_we) && es_valid && ~ws_reflush_es && !data_sram_addr_ok_r && ms_allowin && !ms_int;  //取回来下一拍的要被cancel
+-assign data_sram_wr    = |data_sram_wstrb;
++assign data_sram_req   = (es_res_from_mem || es_mem_we) && es_valid && ~ws_reflush_es && !data_sram_addr_ok_r && ms_allowin && !ms_int /*&& !(|tlb_ex_bus)*/;  //取回来下一拍的要被cancel
++assign data_sram_wr    = |data_sram_wstrb && ~|tlb_ex_bus;
+ assign data_sram_size  = (es_ld_st_op[4] || es_ld_st_op[7]) ? 2'h2
+                         :(es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6]) ? 2'h1
+                         :2'h0;
+-assign data_sram_addr  = es_alu_result;
++// assign data_sram_addr  = es_alu_result;
+ assign data_sram_wstrb = (es_mem_we && es_valid && !ms_int && !es_int) ? mem_write_strb : 4'h0;
+ assign data_sram_wdata = mem_write_data;
+ 
+@@ -369,22 +357,89 @@ wire [31:0] csr_tlbehi_rvalue;
+ wire tlbsrch_hit;
+ wire [31:0] csr_tlbidx_wvalue;
+ wire srch_valid;
++wire [31:0] csr_crmd_rvalue;
++wire [31:0] csr_dmw0_rvalue;
++wire [31:0] csr_dmw1_rvalue;
++assign {csr_tlbehi_rvalue, csr_crmd_rvalue, csr_dmw0_rvalue, csr_dmw1_rvalue, csr_asid_rvalue} = ws_to_es_bus;
+ assign srch_valid = es_valid & tlb_bus[4];
+ assign tlbsrch_hit = srch_valid & s1_found & ~|es_ex_cause_bus_r;
+ assign csr_tlbidx_wvalue = {~s1_found, 1'b0, s1_ps, 20'b0, s1_index };
+ 
+-assign {csr_asid_rvalue, csr_tlbehi_rvalue} = to_es_tlb_bus;
++// assign {csr_asid_rvalue, csr_tlbehi_rvalue} = to_es_tlb_bus;
+ assign to_ws_csr_bus = {srch_valid, tlbsrch_hit, tlb_bus, csr_tlbidx_wvalue};
+ 
+-assign s1_vppn = ({19{tlb_bus[0]}} & es_alu_src2[31:13]) 
++// exp19加入真实查找tlb信号:
++wire [18:0] mem_vppn;
++wire mem_va_bit12;
++wire [9:0] mem_asid;
++
++assign s1_vppn = ({19{(es_res_from_mem||es_mem_we)}} & mem_vppn )
++                | ({19{tlb_bus[0]}} & es_alu_src2[31:13]) 
+                 | ({19{tlb_bus[4]}} & csr_tlbehi_rvalue[31:13]);
+-assign s1_asid = ({19{tlb_bus[0]}} & es_alu_src1[9:0]) 
+-                | ({19{tlb_bus[4]}} & csr_asid_rvalue[9:0]);
+-assign s1_va_bit12 = 1'b0;
++assign s1_asid = ({9{(es_res_from_mem||es_mem_we)}} & mem_asid )
++                | ({9{tlb_bus[0]}} & es_alu_src1[9:0]) 
++                | ({9{tlb_bus[4]}} & csr_asid_rvalue[9:0]);
++assign s1_va_bit12 = (es_res_from_mem||es_mem_we) ? mem_va_bit12:1'b0;
+ 
+ assign invtlb_valid = es_valid & tlb_bus[0];
+-assign is_tlb = |tlb_bus;
++assign is_tlb = |tlb_bus;  // 写特定寄存器也会造成重取
++    //(es_csr_we & (es_csr_num== 14'h0 || es_csr_num == 14'h180 || es_csr_num==14'h181 || es_csr_num==14'h18));
+ // assign invtlb_op = 已在之前的assign中添加
+ 
++// exp19 添加访存op
++wire [ 2: 0] inst_op;
++assign inst_op = {es_res_from_mem,es_mem_we,1'b0};
++vaddr_transfer data_transfer(
++    .va        (es_alu_result),
++    .inst_op   (inst_op),
++    .pa        (data_sram_addr),
++    .tlb_ex_bus(tlb_ex_bus),
++
++    .s_vppn    (mem_vppn), // 输出三个tlb中值, 需要进行选择, 是指令值接入tlb还是地址值
++    .s_va_bit12(mem_va_bit12),
++    .s_asid    (mem_asid),
++    .s_found   (s1_found),
++    .s_index   (s1_index),
++    .s_ppn     (s1_ppn),
++    .s_ps      (s1_ps),
++    .s_plv     (s1_plv),
++    .s_mat     (s1_mat),
++    .s_d       (s1_d),
++    .s_v       (s1_v),
++
++    .csr_asid  (csr_asid_rvalue),
++    .csr_crmd  (csr_crmd_rvalue),
++
++    .dmw_hit   (dmw_hit),
++    .csr_dmw0  (csr_dmw0_rvalue),
++    .csr_dmw1  (csr_dmw1_rvalue)
++    
++);
++
++// generate ALE exception signal
++// here st_vaddr acts both as st_vaddr and ld_vaddr, 
++// because we must fully generate ALE exception signal at this stage
++// ! 还需要重新对当前的tlb_ex_bus判断
++assign es_ex_cause_bus_r[6'h3/*ALE*/] = ((st_vaddr[0] != 1'b0) && 
++                                         (es_ld_st_op[2] || es_ld_st_op[3] || es_ld_st_op[6])) ||
++                                        ((st_vaddr[1:0] != 2'b00) &&
++                                         (es_ld_st_op[4] || es_ld_st_op[7]));
++assign es_ex_cause_bus_r[5:4] = es_ex_cause_bus[5:4];
++// ! 其实此时应该直接等于, 但由于总线未作例外屏蔽, 只能出此下策
++assign es_ex_cause_bus_r[6'h6/*PME    */] = es_ex_cause_bus[6'h6/*PME    */] || (es_valid & tlb_ex_bus[5]);
++assign es_ex_cause_bus_r[6'h7/*PPI    */] = es_ex_cause_bus[6'h7/*PPI    */] || (es_valid & tlb_ex_bus[4]);
++assign es_ex_cause_bus_r[6'h8/*PIS    */] = es_ex_cause_bus[6'h8/*PIS    */] || (es_valid & tlb_ex_bus[3]);
++assign es_ex_cause_bus_r[6'h9/*PME    */] = es_ex_cause_bus[6'h9/*PME    */] || (es_valid & tlb_ex_bus[2]);
++assign es_ex_cause_bus_r[6'ha/*PIF    */] = es_ex_cause_bus[6'ha/*PIF    */] || (es_valid & tlb_ex_bus[1]);
++assign es_ex_cause_bus_r[6'hb/*TLBR   */] = es_ex_cause_bus[6'hb/*TLBR   */] || (es_valid & tlb_ex_bus[0]);
++assign es_ex_cause_bus_r[6'hd/*ADEM   */] = (es_res_from_mem||es_mem_we) & es_alu_result[31] & (csr_crmd_rvalue[1:0]!=0) & ~dmw_hit;
++assign es_ex_cause_bus_r[16:14] = es_ex_cause_bus[16:14];
++assign es_ex_cause_bus_r[12] = es_ex_cause_bus[12];
++assign es_ex_cause_bus_r[ 2:0] = es_ex_cause_bus[ 2:0];
++
++assign es_int = es_ex_cause_bus_r[6'h3];
++
++assign es_csr = (es_csr_we || es_csr_rd) & es_valid;
++assign es_tid = es_rdcntid & es_valid;
+ 
+ endmodule
+\ No newline at end of file
+diff --git a/ID_stage.v b/ID_stage.v
+index e6366d5..fe537a1 100644
+--- a/ID_stage.v
++++ b/ID_stage.v
+@@ -6,7 +6,7 @@ module ID_stage(
+     output         ds_allowin,
+     //from fs
+     input          fs_to_ds_valid,
+-    input  [64:0]  fs_to_ds_bus,
++    input  [69:0]  fs_to_ds_bus,
+     //to es
+     output         ds_to_es_valid,
+     output [241:0] ds_to_es_bus,
+@@ -44,7 +44,7 @@ module ID_stage(
+ reg         ds_valid;
+ wire        ds_ready_go;
+ 
+-reg  [64:0] fs_to_ds_bus_r;
++reg  [69:0] fs_to_ds_bus_r;
+ 
+ wire [31:0] ds_inst;
+ wire [31:0] ds_pc;
+@@ -338,20 +338,34 @@ assign ex_ine = ~(inst_add_w || inst_addi_w || inst_and || inst_andi ||
+                 inst_xor || inst_xori || inst_rdcntid_w || inst_rdcntvh_w || inst_rdcntvl_w ||
+                 inst_tlbsrch || inst_tlbrd || inst_tlbwr || inst_tlbfill || inst_invtlb);
+ 
++// exp19 临时线
++wire [ 5:0] tlb_ex_bus;// 其使命在这一段开摆
+ // 自己好好商讨bus中的位置和相关信息，位宽是足够的。
+ // 目前bus中搭载的异常标志约定如下：
+ // 0: INT           1: SYSCALL      2: ADEF
+ // 3: ALE           4: BRK          5: INE
+-// 6-15: (RESERVED)
++// 6: PME           7: PPI          8: PIS
++// 9: PIL           a: PIF          b: TLBR
++// c: IF or EXE 用来标志是if阶段的地址错, 还是mem阶段地址错, 1表示若出错, 就是IF错, 否则就是MEM错的
++// d: ADEM错, 虽然不知道为什么会错, 但是从上一届来看, plv!=0时, 访存最高位不能为1, 挺奇怪的
++// 14-15: (RESERVED)
+ // 16: pseudo-exception for tlb-inst
+-assign ex_cause_bus[16:6] = 15'b0;
++assign ex_cause_bus[15:13] = 3'b0;
+ assign ex_cause_bus[6'h0/*INT    */] = ds_valid & has_int;
+ assign ex_cause_bus[6'h1/*SYSCALL*/] = ds_valid & inst_syscall;
+-// TODO: add ID stage exception causes
+ assign ex_cause_bus[6'h2/*ADEF   */] = ds_valid & ex_adef;
+ // (ALE exception will be generated at EXE stage)
+ assign ex_cause_bus[6'h4/*BRK    */] = ds_valid & inst_break;
+ assign ex_cause_bus[6'h5/*INE    */] = ds_valid & (ex_ine || invtlb_ine);
++// ! tlb_ex_bus::{PME,PPI,PIS,PIL,PIF,TLBR} 具体见vaddr_trans.v:53
++assign ex_cause_bus[6'h6/*PME    */] = ds_valid & tlb_ex_bus[5];
++assign ex_cause_bus[6'h7/*PPI    */] = ds_valid & tlb_ex_bus[4];
++assign ex_cause_bus[6'h8/*PIS    */] = ds_valid & tlb_ex_bus[3];
++assign ex_cause_bus[6'h9/*PIL    */] = ds_valid & tlb_ex_bus[2];
++assign ex_cause_bus[6'ha/*PIF    */] = ds_valid & tlb_ex_bus[1];
++assign ex_cause_bus[6'hb/*TLBR   */] = ds_valid & tlb_ex_bus[0];
++assign ex_cause_bus[6'hc/*IForMEM*/] = ds_valid & (ex_adef || (|tlb_ex_bus));
++
+ assign ex_cause_bus[6'h10          ] = ds_valid & (is_tlb);
+ 
+ 
+@@ -551,6 +565,7 @@ assign alu_src2 = src2_is_imm ? imm : rkd_value;
+ // exp18 临时线
+ wire [4:0] tlb_bus = {inst_tlbsrch, inst_tlbrd, inst_tlbwr, inst_tlbfill, inst_invtlb};
+ 
++
+ assign ds_to_es_bus = {
+     tlb_bus,        //241:237
+     invtlb_op,      //236:232
+@@ -591,7 +606,7 @@ assign ds_ready_go    = (!es_ld_cancel & !ms_ld_cancel & (!csr_block) & (!tid_bl
+ assign ds_allowin     = !ds_valid || ds_ready_go && es_allowin;
+ assign ds_to_es_valid = ds_valid && ds_ready_go && !ws_reflush_ds;
+ 
+-assign {ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
++assign {tlb_ex_bus, ds_inst, ds_pc, ex_adef} = fs_to_ds_bus_r;
+ // assign ex_tlb = fs_to_ds_bus[0];
+ 
+ assign {rf_we   ,  //37:37
+diff --git a/IF_stage.v b/IF_stage.v
+index c3b6577..1f353b7 100644
+--- a/IF_stage.v
++++ b/IF_stage.v
+@@ -11,7 +11,7 @@ module IF_stage
+     input  [33:0] br_bus,
+     //to ds
+     output        fs_to_ds_valid,
+-    output [64:0] fs_to_ds_bus,
++    output [69:0] fs_to_ds_bus,
+     // inst sram interface
+     output        inst_sram_req,
+     output        inst_sram_wr,
+@@ -21,9 +21,11 @@ module IF_stage
+     output [31:0] inst_sram_wdata,
+     input         inst_sram_addr_ok,
+     input         inst_sram_data_ok,
+-    input  [31:0] inst_sram_rdata,
++    input [31:0]  inst_sram_rdata,
+     // reflush
+-    input  [32:0] ws_reflush_fs_bus,
++    input [32:0] ws_reflush_fs_bus,
++        // 从ws阶段传来的4*32的value线
++    input [127:0] ws_to_fs_bus,
+ 
+     output [              18:0] s0_vppn,
+     output                      s0_va_bit12,
+@@ -63,10 +65,7 @@ wire        br_taken;
+ wire [31:0] br_target;
+ wire        br_stall;
+ 
+-// whether ADEF exception occurs
+-// ADEF exception should happen at pre-IF stage
+-wire is_ex_adef;
+-assign is_ex_adef = (nextpc[1:0] != 2'b00);
++
+ 
+ // jump to sepc
+ wire ws_reflush_fs;
+@@ -79,11 +78,13 @@ reg  [31:0] fs_pc;
+ wire        br_taken_cancel;
+ 
+ reg [1:0] fs_inst_cancel;
+-
++wire [ 5:0] tlb_ex_bus;
++wire is_ex_adef;
+ assign {br_stall, br_taken, br_target} = br_bus;
+-assign fs_to_ds_bus = {fs_inst, 
+-                       fs_pc, 
+-                       is_ex_adef};     // 将ADEF异常判断信号传到ID阶段，
++assign fs_to_ds_bus = { tlb_ex_bus,
++                        fs_inst, 
++                        fs_pc, 
++                        is_ex_adef};     // 将ADEF异常判断信号传到ID阶段，
+                                         // 再由ex_cause_bus统一搭载传递至WB阶段
+ assign br_taken_cancel = ds_allowin && br_taken;
+ 
+@@ -195,10 +196,48 @@ end
+ assign inst_sram_req   = ~reset && fs_allowin;
+ assign inst_sram_wr    = 1'h0;
+ assign inst_sram_size  = 2'h2;
+-assign inst_sram_addr  = nextpc;
++// assign inst_sram_addr  = nextpc;
+ assign inst_sram_wstrb = 4'h0;
+ assign inst_sram_wdata = 32'h0;
+ 
+ assign fs_inst = fs_inst_buffer_valid ? fs_inst_buffer : inst_sram_rdata;
+ 
++
++wire [31:0] csr_asid_rvalue;
++wire [31:0] csr_crmd_rvalue;
++wire [31:0] csr_dmw0_rvalue;
++wire [31:0] csr_dmw1_rvalue;
++assign {csr_crmd_rvalue, csr_dmw0_rvalue, csr_dmw1_rvalue, csr_asid_rvalue} = ws_to_fs_bus;
++
++vaddr_transfer inst_transfer(
++    .va        (nextpc),
++    .inst_op   (3'b001),// 三类输入{load.store,inst}
++    .pa        (inst_sram_addr),
++    .tlb_ex_bus(tlb_ex_bus),//{PME,PPI,PIS,PIL,PIF,TLBR}
++    // tlb:: 和s0连接
++    .s_vppn    (s0_vppn),
++    .s_va_bit12(s0_va_bit12),
++    .s_asid    (s0_asid),
++    .s_found   (s0_found),
++    .s_index   (s0_index),
++    .s_ppn     (s0_ppn),
++    .s_ps      (s0_ps),
++    .s_plv     (s0_plv),
++    .s_mat     (s0_mat),
++    .s_d       (s0_d),
++    .s_v       (s0_v),
++    // crmd:: 读入csr中信息做判断
++    .csr_asid  (csr_asid_rvalue),
++    .csr_crmd  (csr_crmd_rvalue),
++    // crmd:: 读入csr中信息做判断
++    .dmw_hit   (dmw_hit),
++    .csr_dmw0  (csr_dmw0_rvalue),
++    .csr_dmw1  (csr_dmw1_rvalue)
++);
++
++// whether ADEF exception occurs
++// ADEF exception should happen at pre-IF stage
++
++
++assign is_ex_adef = (nextpc[1:0] != 2'b00) || (nextpc[31] & (csr_crmd_rvalue[1:0]!=0)) & ~dmw_hit;
+ endmodule
+\ No newline at end of file
+diff --git a/MEM_stage.v b/MEM_stage.v
+index b3ad707..30e1ee5 100644
+--- a/MEM_stage.v
++++ b/MEM_stage.v
+@@ -54,7 +54,8 @@ assign ms_int = ms_valid & // valid stage
+                 ( ms_ertn // ertn happened or
+                 | (|ms_ex_cause_bus) // there are some exception causes
+                 );
+-assign ms_vaddr = ms_alu_result;
++// !exp19:: 进行一个选择
++assign ms_vaddr = ms_ex_cause_bus[12]? ms_pc : ms_alu_result;
+ 
+ // exp18
+ wire [4:0] tlb_bus;
+diff --git a/WB_stage.v b/WB_stage.v
+index b1b8877..ac1c287 100644
+--- a/WB_stage.v
++++ b/WB_stage.v
+@@ -6,6 +6,11 @@
+     `define CSR_ERA       32'h6
+     `define CSR_BADV      32'h7
+     `define CSR_EENTRY    32'hc
++    `define CSR_TLBIDX    32'h10
++    `define CSR_TLBEHI    32'h11
++    `define CSR_TLBELO0   32'h12
++    `define CSR_TLBELO1   32'h13
++    `define CSR_ASID      32'h18
+     `define CSR_SAVE0     32'h30
+     `define CSR_SAVE1     32'h31   
+     `define CSR_SAVE2     32'h32
+@@ -14,6 +19,9 @@
+     `define CSR_TCFG      32'h41
+     `define CSR_TVAL      32'h42
+     `define CSR_TICLR     32'h44
++    `define CSR_TLBRENTRY 32'h88
++    `define CSR_DMW0      32'h180
++    `define CSR_DMW1      32'h181
+ // EX_CODE declaration
+     `define ECODE_INT     6'h0
+     `define ECODE_PIL     6'h1
+@@ -101,8 +109,10 @@ module WB_stage
+     input                       r_d1,
+     input                       r_v1,
+     // 从exe级传来的srch指令
+-    output [63:0] to_es_tlb_bus, 
+-    input [38:0] to_ws_csr_bus
++    // output [63:0] to_es_tlb_bus, 
++    input [38:0] to_ws_csr_bus,
++    output [127:0] ws_to_fs_bus,
++    output [159:0] ws_to_es_bus
+ );
+ 
+ reg         ws_valid;
+@@ -198,26 +208,35 @@ assign debug_wb_rf_wnum  = ws_dest;
+ assign debug_wb_rf_wdata = rf_wdata;
+ 
+ // csr
++wire [31:0] csr_tlbrentry_rvalue;
+ assign ws_ex = ws_valid & (|ws_ex_cause_bus[15:0]); // ex不包括最新的16号伪异常
+-assign ws_ecode = (ws_ex_cause_bus[6'h1] & ws_valid) ? `ECODE_SYS         
+-                : (ws_ex_cause_bus[6'h2] & ws_valid) ? `ECODE_ADE
++assign ws_ecode = (ws_ex_cause_bus[6'h2] & ws_valid) ? `ECODE_ADE   // if异常
++                : (ws_ex_cause_bus[6'h1] & ws_valid) ? `ECODE_SYS
+                 : (ws_ex_cause_bus[6'h3] & ws_valid) ? `ECODE_ALE
+                 : (ws_ex_cause_bus[6'h4] & ws_valid) ? `ECODE_BRK
+                 : (ws_ex_cause_bus[6'h5] & ws_valid) ? `ECODE_INE
++                : (ws_ex_cause_bus[6'h8] & ws_valid) ? `ECODE_PIS
++                : (ws_ex_cause_bus[6'h7] & ws_valid) ? `ECODE_PPI 
++                : (ws_ex_cause_bus[6'h6] & ws_valid) ? `ECODE_PME
++                : (ws_ex_cause_bus[6'h9] & ws_valid) ? `ECODE_PIL
++                : (ws_ex_cause_bus[6'ha] & ws_valid) ? `ECODE_PIF
++                : (ws_ex_cause_bus[6'hd] & ws_valid) ? `ECODE_ADE   // exe异常
++                : (ws_ex_cause_bus[6'hb] & ws_valid) ? `ECODE_TLBR
+                 : 6'b0;                     // !!!!! 只记录最早报出的例外
+ assign ws_esubcode = (ws_ex_cause_bus[6'h2] & ws_valid) ? `ESUBCODE_ADEF
+-                   : 9'b0;
++                    : (ws_ex_cause_bus[6'hd] & ws_valid) ? `ESUBCODE_ADEM
++                    : 9'b0;
+ assign ws_reflush_ds = ws_valid & // valid stage
+                     ( ws_ertn // ertn happened or
+                     | (|ws_ex_cause_bus) // there are some exception causes
++                    | (ws_csr_we & (ws_csr_num== `CSR_CRMD || ws_csr_num == `CSR_DMW0 || ws_csr_num==`CSR_DMW1 || ws_csr_num==`CSR_ASID)) // 写对应寄存器
+                     );
+ assign ws_reflush_es = ws_reflush_ds;
+ assign ws_reflush_ms = ws_reflush_ds;
+-assign ws_reflush_fs_bus = {ws_valid & // valid stage
+-                        (ws_ertn | (|ws_ex_cause_bus)), // 有ertn或者有中断，则需flush
++assign ws_reflush_fs_bus = {ws_reflush_ds, // 有ertn或者有中断，则需flush
+                         ws_ertn ? era_entry :// ertn 恢复, 后面需要单独判定第16位
+                         // ( ws_ex_cause_bus[16] ? ws_pc: ((|ws_ex_cause_bus[15:0])?(ex_entry):{ws_pc}+4) )
+-                        ((|ws_ex_cause_bus[15:0])?(ex_entry):{ws_pc}+4)
++                        ((|ws_ex_cause_bus[15:0])?((ws_ecode==`ECODE_TLBR)?csr_tlbrentry_rvalue:ex_entry):{ws_pc}+4)
+                         };     
+ assign hw_int_in     = 8'b0;            // ????? 这个硬中断如何采样处理？
+ assign ipi_int_in    = 1'b0;
+@@ -252,7 +271,8 @@ wire csr_tlbrd_re;
+ wire srch_valid; // 为了标志是srch指令, 区分开未命中的
+ wire [4:0] srch_bus; // ! 为了传入exe阶段的tlb操作, 用来改写tlb_bus
+ 
+-assign to_es_tlb_bus = {csr_asid_rvalue, csr_tlbehi_rvalue};
++assign ws_to_es_bus = {csr_tlbehi_rvalue, csr_crmd_rvalue, csr_dmw0_rvalue, csr_dmw1_rvalue, csr_asid_rvalue};
++assign ws_to_fs_bus = {csr_crmd_rvalue, csr_dmw0_rvalue, csr_dmw1_rvalue, csr_asid_rvalue};
+ assign {srch_valid, tlbsrch_hit, srch_bus, srch_tlbidx_wvalue} = to_ws_csr_bus;
+ assign tlb_bus = ({5{ws_valid && (~|ws_ex_cause_bus)}} & ws_tlb_bus) | ({5{srch_valid}} & srch_bus);
+ 
+@@ -326,6 +346,7 @@ csr inst_csr(
+     .csr_tlbelo0_wvalue (csr_tlbelo0_wvalue),
+     .csr_tlbelo1_wvalue (csr_tlbelo1_wvalue),
+     .csr_asid_wvalue    (csr_asid_wvalue),
++    .csr_tlbrentry_rvalue (csr_tlbrentry_rvalue),
+     .csr_tlbidx_rvalue  (csr_tlbidx_rvalue),
+     .csr_tlbehi_rvalue  (csr_tlbehi_rvalue),
+     .csr_tlbelo0_rvalue (csr_tlbelo0_rvalue),
+diff --git a/cpu_core.v b/cpu_core.v
+index 146edd1..358cba4 100644
+--- a/cpu_core.v
++++ b/cpu_core.v
+@@ -60,7 +60,7 @@ wire ds_to_es_valid;
+ wire es_to_ms_valid;
+ wire ms_to_ws_valid;
+ 
+-wire [65:0] fs_to_ds_bus;
++wire [69:0] fs_to_ds_bus;
+ wire [241:0] ds_to_es_bus;
+ wire [148:0] es_to_ms_bus;
+ wire [173:0] ms_to_ws_bus;
+@@ -161,6 +161,10 @@ wire [38:0] to_ws_csr_bus;
+ // id--> if is tlb inst
+ wire is_tlb;
+ 
++// exp19
++wire [127:0] ws_to_fs_bus;
++wire [159:0] ws_to_es_bus;
++
+ IF_stage if_stage(
+     .clk                (clk            ),
+     .reset              (reset          ),
+@@ -178,6 +182,7 @@ IF_stage if_stage(
+     .inst_sram_data_ok  (inst_sram_data_ok),
+     .inst_sram_rdata    (inst_sram_rdata),
+     .ws_reflush_fs_bus  (ws_reflush_fs_bus),
++    .ws_to_fs_bus       (ws_to_fs_bus),
+     // connect with TLB
+     .s0_vppn            (s0_vppn        ),
+     .s0_va_bit12        (s0_va_bit12    ),
+@@ -263,8 +268,9 @@ EXE_stage exe_stage(
+     .invtlb_valid  (invtlb_valid   ),
+     .invtlb_op     (invtlb_op      ),
+     // exe和wb的csr, srch交互
+-    .to_es_tlb_bus (to_es_tlb_bus  ),
++    // .to_es_tlb_bus (to_es_tlb_bus  ),
+     .to_ws_csr_bus (to_ws_csr_bus  ),
++    .ws_to_es_bus       (ws_to_es_bus),
+     .is_tlb             (is_tlb         )
+ );
+ 
+@@ -309,6 +315,9 @@ WB_stage wb_stage(
+     .ws_reflush_es    (ws_reflush_es),
+     .ws_reflush_ms    (ws_reflush_ms),
+ 
++    .ws_to_fs_bus       (ws_to_fs_bus),
++    .ws_to_es_bus       (ws_to_es_bus),
++
+     .has_int          (has_int),
+     .ws_csr           (ws_csr),
+     // * 支持TLBWR和TLBFILL指令 in WB
+@@ -347,7 +356,7 @@ WB_stage wb_stage(
+     .r_d1          (r_d1           ),
+     .r_v1          (r_v1           ),
+     // exe和wb的csr, srch交互
+-    .to_es_tlb_bus (to_es_tlb_bus  ),
++    // .to_es_tlb_bus (to_es_tlb_bus  ),
+     .to_ws_csr_bus (to_ws_csr_bus  )
+ );
+ 
+diff --git a/tlb.v b/tlb.v
+index ba1ef3b..c69887e 100644
+--- a/tlb.v
++++ b/tlb.v
+@@ -131,148 +131,21 @@ module tlb
+ 
+ 
+ // ! TLB-match区
+-    // generate // ! 用来对比TLB表项, 生成两个match regs
+-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
+-    //     begin: __TLB_compare
+-    //         assign match0[tlb_index] = // ! 虚拟地址对上 + 页数对上 + asid对上 + exist
+-    //             (s0_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
+-    //            && (tlb_ps4MB[tlb_index] || s0_vppn[9:0]==tlb_vppn[tlb_index][9:0])
+-    //            && (s0_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
++        generate // ! 用来对比TLB表项, 生成两个match regs
++        for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
++        begin: __TLB_compare
++                assign match0[tlb_index] = // ! 虚拟地址对上 + 页数对上 + asid对上 + exist
++                (s0_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
++                && (tlb_ps4MB[tlb_index] || s0_vppn[9:0]==tlb_vppn[tlb_index][9:0])
++                && (s0_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
++
++                assign match1[tlb_index] = 
++                (s1_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
++                && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0])
++                && (s1_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
++        end
++        endgenerate
+ 
+-    //         assign match1[tlb_index] = 
+-    //             (s1_vppn[18:10] == tlb_vppn[tlb_index][18:10]) && tlb_e[tlb_index]
+-    //            && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0])
+-    //            && (s1_asid == tlb_asid[tlb_index] || tlb_g[tlb_index]);
+-    //     end
+-    // endgenerate
+-    assign match0[0] =
+-            (s0_vppn[18:10] == tlb_vppn[0][18:10]) && tlb_e[0]
+-            && (tlb_ps4MB[0] || s0_vppn[9:0]==tlb_vppn[0][9:0])
+-            && (s0_asid == tlb_asid[0] || tlb_g[0]);
+-    assign match0[1] =
+-            (s0_vppn[18:10] == tlb_vppn[1][18:10]) && tlb_e[1]
+-            && (tlb_ps4MB[1] || s0_vppn[9:0]==tlb_vppn[1][9:0])
+-            && (s0_asid == tlb_asid[1] || tlb_g[1]);
+-    assign match0[2] =
+-            (s0_vppn[18:10] == tlb_vppn[2][18:10]) && tlb_e[2]
+-            && (tlb_ps4MB[2] || s0_vppn[9:0]==tlb_vppn[2][9:0])
+-            && (s0_asid == tlb_asid[2] || tlb_g[2]);
+-    assign match0[3] =
+-            (s0_vppn[18:10] == tlb_vppn[3][18:10]) && tlb_e[3]
+-            && (tlb_ps4MB[3] || s0_vppn[9:0]==tlb_vppn[3][9:0])
+-            && (s0_asid == tlb_asid[3] || tlb_g[3]);
+-    assign match0[4] =
+-            (s0_vppn[18:10] == tlb_vppn[4][18:10]) && tlb_e[4]
+-            && (tlb_ps4MB[4] || s0_vppn[9:0]==tlb_vppn[4][9:0])
+-            && (s0_asid == tlb_asid[4] || tlb_g[4]);
+-    assign match0[5] =
+-            (s0_vppn[18:10] == tlb_vppn[5][18:10]) && tlb_e[5]
+-            && (tlb_ps4MB[5] || s0_vppn[9:0]==tlb_vppn[5][9:0])
+-            && (s0_asid == tlb_asid[5] || tlb_g[5]);
+-    assign match0[6] =
+-            (s0_vppn[18:10] == tlb_vppn[6][18:10]) && tlb_e[6]
+-            && (tlb_ps4MB[6] || s0_vppn[9:0]==tlb_vppn[6][9:0])
+-            && (s0_asid == tlb_asid[6] || tlb_g[6]);
+-    assign match0[7] =
+-            (s0_vppn[18:10] == tlb_vppn[7][18:10]) && tlb_e[7]
+-            && (tlb_ps4MB[7] || s0_vppn[9:0]==tlb_vppn[7][9:0])
+-            && (s0_asid == tlb_asid[7] || tlb_g[7]);
+-    assign match0[8] =
+-            (s0_vppn[18:10] == tlb_vppn[8][18:10]) && tlb_e[8]
+-            && (tlb_ps4MB[8] || s0_vppn[9:0]==tlb_vppn[8][9:0])
+-            && (s0_asid == tlb_asid[8] || tlb_g[8]);
+-    assign match0[9] =
+-            (s0_vppn[18:10] == tlb_vppn[9][18:10]) && tlb_e[9]
+-            && (tlb_ps4MB[9] || s0_vppn[9:0]==tlb_vppn[9][9:0])
+-            && (s0_asid == tlb_asid[9] || tlb_g[9]);
+-    assign match0[10] =
+-            (s0_vppn[18:10] == tlb_vppn[10][18:10]) && tlb_e[10]
+-            && (tlb_ps4MB[10] || s0_vppn[9:0]==tlb_vppn[10][9:0])
+-            && (s0_asid == tlb_asid[10] || tlb_g[10]);
+-    assign match0[11] =
+-            (s0_vppn[18:10] == tlb_vppn[11][18:10]) && tlb_e[11]
+-            && (tlb_ps4MB[11] || s0_vppn[9:0]==tlb_vppn[11][9:0])
+-            && (s0_asid == tlb_asid[11] || tlb_g[11]);
+-    assign match0[12] =
+-            (s0_vppn[18:10] == tlb_vppn[12][18:10]) && tlb_e[12]
+-            && (tlb_ps4MB[12] || s0_vppn[9:0]==tlb_vppn[12][9:0])
+-            && (s0_asid == tlb_asid[12] || tlb_g[12]);
+-    assign match0[13] =
+-            (s0_vppn[18:10] == tlb_vppn[13][18:10]) && tlb_e[13]
+-            && (tlb_ps4MB[13] || s0_vppn[9:0]==tlb_vppn[13][9:0])
+-            && (s0_asid == tlb_asid[13] || tlb_g[13]);
+-    assign match0[14] =
+-            (s0_vppn[18:10] == tlb_vppn[14][18:10]) && tlb_e[14]
+-            && (tlb_ps4MB[14] || s0_vppn[9:0]==tlb_vppn[14][9:0])
+-            && (s0_asid == tlb_asid[14] || tlb_g[14]);
+-    assign match0[15] =
+-            (s0_vppn[18:10] == tlb_vppn[15][18:10]) && tlb_e[15]
+-            && (tlb_ps4MB[15] || s0_vppn[9:0]==tlb_vppn[15][9:0])
+-            && (s0_asid == tlb_asid[15] || tlb_g[15]);
+-    assign match1[0] =
+-            (s1_vppn[18:10] == tlb_vppn[0][18:10]) && tlb_e[0]
+-            && (tlb_ps4MB[0] || s1_vppn[9:0]==tlb_vppn[0][9:0])
+-            && (s1_asid == tlb_asid[0] || tlb_g[0]);
+-    assign match1[1] =
+-            (s1_vppn[18:10] == tlb_vppn[1][18:10]) && tlb_e[1]
+-            && (tlb_ps4MB[1] || s1_vppn[9:0]==tlb_vppn[1][9:0])
+-            && (s1_asid == tlb_asid[1] || tlb_g[1]);
+-    assign match1[2] =
+-            (s1_vppn[18:10] == tlb_vppn[2][18:10]) && tlb_e[2]
+-            && (tlb_ps4MB[2] || s1_vppn[9:0]==tlb_vppn[2][9:0])
+-            && (s1_asid == tlb_asid[2] || tlb_g[2]);
+-    assign match1[3] =
+-            (s1_vppn[18:10] == tlb_vppn[3][18:10]) && tlb_e[3]
+-            && (tlb_ps4MB[3] || s1_vppn[9:0]==tlb_vppn[3][9:0])
+-            && (s1_asid == tlb_asid[3] || tlb_g[3]);
+-    assign match1[4] =
+-            (s1_vppn[18:10] == tlb_vppn[4][18:10]) && tlb_e[4]
+-            && (tlb_ps4MB[4] || s1_vppn[9:0]==tlb_vppn[4][9:0])
+-            && (s1_asid == tlb_asid[4] || tlb_g[4]);
+-    assign match1[5] =
+-            (s1_vppn[18:10] == tlb_vppn[5][18:10]) && tlb_e[5]
+-            && (tlb_ps4MB[5] || s1_vppn[9:0]==tlb_vppn[5][9:0])
+-            && (s1_asid == tlb_asid[5] || tlb_g[5]);
+-    assign match1[6] =
+-            (s1_vppn[18:10] == tlb_vppn[6][18:10]) && tlb_e[6]
+-            && (tlb_ps4MB[6] || s1_vppn[9:0]==tlb_vppn[6][9:0])
+-            && (s1_asid == tlb_asid[6] || tlb_g[6]);
+-    assign match1[7] =
+-            (s1_vppn[18:10] == tlb_vppn[7][18:10]) && tlb_e[7]
+-            && (tlb_ps4MB[7] || s1_vppn[9:0]==tlb_vppn[7][9:0])
+-            && (s1_asid == tlb_asid[7] || tlb_g[7]);
+-    assign match1[8] =
+-            (s1_vppn[18:10] == tlb_vppn[8][18:10]) && tlb_e[8]
+-            && (tlb_ps4MB[8] || s1_vppn[9:0]==tlb_vppn[8][9:0])
+-            && (s1_asid == tlb_asid[8] || tlb_g[8]);
+-    assign match1[9] =
+-            (s1_vppn[18:10] == tlb_vppn[9][18:10]) && tlb_e[9]
+-            && (tlb_ps4MB[9] || s1_vppn[9:0]==tlb_vppn[9][9:0])
+-            && (s1_asid == tlb_asid[9] || tlb_g[9]);
+-    assign match1[10] =
+-            (s1_vppn[18:10] == tlb_vppn[10][18:10]) && tlb_e[10]
+-            && (tlb_ps4MB[10] || s1_vppn[9:0]==tlb_vppn[10][9:0])
+-            && (s1_asid == tlb_asid[10] || tlb_g[10]);
+-    assign match1[11] =
+-            (s1_vppn[18:10] == tlb_vppn[11][18:10]) && tlb_e[11]
+-            && (tlb_ps4MB[11] || s1_vppn[9:0]==tlb_vppn[11][9:0])
+-            && (s1_asid == tlb_asid[11] || tlb_g[11]);
+-    assign match1[12] =
+-            (s1_vppn[18:10] == tlb_vppn[12][18:10]) && tlb_e[12]
+-            && (tlb_ps4MB[12] || s1_vppn[9:0]==tlb_vppn[12][9:0])
+-            && (s1_asid == tlb_asid[12] || tlb_g[12]);
+-    assign match1[13] =
+-            (s1_vppn[18:10] == tlb_vppn[13][18:10]) && tlb_e[13]
+-            && (tlb_ps4MB[13] || s1_vppn[9:0]==tlb_vppn[13][9:0])
+-            && (s1_asid == tlb_asid[13] || tlb_g[13]);
+-    assign match1[14] =
+-            (s1_vppn[18:10] == tlb_vppn[14][18:10]) && tlb_e[14]
+-            && (tlb_ps4MB[14] || s1_vppn[9:0]==tlb_vppn[14][9:0])
+-            && (s1_asid == tlb_asid[14] || tlb_g[14]);
+-    assign match1[15] =
+-            (s1_vppn[18:10] == tlb_vppn[15][18:10]) && tlb_e[15]
+-            && (tlb_ps4MB[15] || s1_vppn[9:0]==tlb_vppn[15][9:0])
+-            && (s1_asid == tlb_asid[15] || tlb_g[15]);
+     // 是否found
+     assign s0_found = |match0;
+     assign s1_found = |match1;
+@@ -308,192 +181,33 @@ module tlb
+  * 0x6:: 清除G=1, ASID等于寄存器指定ASID的页表项, 且VA一致的页表项
+  ! 综合考虑, 共有3种组合项
+  */
+-    // generate // * 首先得到匹配的表项
+-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
+-    //     begin: __flush_TLB_prepare
+-    //         // ! 三项分别代表, G==1; asid对应; va一致(也就是虚拟页表对应, 要么)
+-    //         assign attr[tlb_index][0] = tlb_g[tlb_index];
+-    //         assign attr[tlb_index][1] = s1_asid == tlb_asid[tlb_index];
+-    //         assign attr[tlb_index][2] = (s1_vppn[18:10]==tlb_vppn[tlb_index][18:10]) // 高位必须一一对应
+-    //            && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0]); // 低位则当4KB时, 才需要一一对应
++    generate // * 首先得到匹配的表项
++        for(tlb_index = 0; tlb_index < TLBNUM; tlb_index=tlb_index+1)
++        begin: __flush_TLB_prepare
++            // ! 三项分别代表, G==1; asid对应; va一致(也就是虚拟页表对应, 要么)
++            assign attr[tlb_index][0] = tlb_g[tlb_index];
++            assign attr[tlb_index][1] = s1_asid == tlb_asid[tlb_index];
++            assign attr[tlb_index][2] = (s1_vppn[18:10]==tlb_vppn[tlb_index][18:10]) // 高位必须一一对应
++               && (tlb_ps4MB[tlb_index] || s1_vppn[9:0]==tlb_vppn[tlb_index][ 9: 0]); // 低位则当4KB时, 才需要一一对应
+ 
+-    //         assign inv_match[tlb_index] = ((invtlb_op==0||invtlb_op==1) & 1'b1)  // all
+-    //                                      ||((invtlb_op==2) & (attr[tlb_index][0]))  // G = 1
+-    //                                      ||((invtlb_op==3) & (!attr[tlb_index][0]))  // G = 0
+-    //                                      ||((invtlb_op==4) & (!attr[tlb_index][0]) & (attr[tlb_index][1])) // G=0, ASID一致
+-    //                                      ||((invtlb_op==5) & (!attr[tlb_index][0]) & attr[tlb_index][1] & attr[tlb_index][2])
+-    //                                      ||((invtlb_op==6) & (attr[tlb_index][0] | attr[tlb_index][1]) & attr[tlb_index][2]);
+-    //       end
+-    // endgenerate              
+-    assign attr[0][0] = tlb_g[0];
+-    assign attr[0][1] = s1_asid == tlb_asid[0];
+-    assign attr[0][2] = (s1_vppn[18:10]==tlb_vppn[0][18:10])
+-        && (tlb_ps4MB[0] || s1_vppn[9:0]==tlb_vppn[0][ 9: 0]);
+-    assign inv_match[0] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[0][0]))
+-                        ||((invtlb_op==3) & (!attr[0][0]))
+-                        ||((invtlb_op==4) & (!attr[0][0]) & (attr[0][1]))
+-                        ||((invtlb_op==5) & (!attr[0][0]) & attr[0][1] & attr[0][2])
+-                        ||((invtlb_op==6) & (attr[0][0] | attr[0][1]) & attr[0][2]);
+-    assign attr[1][0] = tlb_g[1];
+-    assign attr[1][1] = s1_asid == tlb_asid[1];
+-    assign attr[1][2] = (s1_vppn[18:10]==tlb_vppn[1][18:10])
+-        && (tlb_ps4MB[1] || s1_vppn[9:0]==tlb_vppn[1][ 9: 0]);
+-    assign inv_match[1] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[1][0]))
+-                        ||((invtlb_op==3) & (!attr[1][0]))
+-                        ||((invtlb_op==4) & (!attr[1][0]) & (attr[1][1]))
+-                        ||((invtlb_op==5) & (!attr[1][0]) & attr[1][1] & attr[1][2])
+-                        ||((invtlb_op==6) & (attr[1][0] | attr[1][1]) & attr[1][2]);
+-    assign attr[2][0] = tlb_g[2];
+-    assign attr[2][1] = s1_asid == tlb_asid[2];
+-    assign attr[2][2] = (s1_vppn[18:10]==tlb_vppn[2][18:10])
+-        && (tlb_ps4MB[2] || s1_vppn[9:0]==tlb_vppn[2][ 9: 0]);
+-    assign inv_match[2] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[2][0]))
+-                        ||((invtlb_op==3) & (!attr[2][0]))
+-                        ||((invtlb_op==4) & (!attr[2][0]) & (attr[2][1]))
+-                        ||((invtlb_op==5) & (!attr[2][0]) & attr[2][1] & attr[2][2])
+-                        ||((invtlb_op==6) & (attr[2][0] | attr[2][1]) & attr[2][2]);
+-    assign attr[3][0] = tlb_g[3];
+-    assign attr[3][1] = s1_asid == tlb_asid[3];
+-    assign attr[3][2] = (s1_vppn[18:10]==tlb_vppn[3][18:10])
+-        && (tlb_ps4MB[3] || s1_vppn[9:0]==tlb_vppn[3][ 9: 0]);
+-    assign inv_match[3] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[3][0]))
+-                        ||((invtlb_op==3) & (!attr[3][0]))
+-                        ||((invtlb_op==4) & (!attr[3][0]) & (attr[3][1]))
+-                        ||((invtlb_op==5) & (!attr[3][0]) & attr[3][1] & attr[3][2])
+-                        ||((invtlb_op==6) & (attr[3][0] | attr[3][1]) & attr[3][2]);
+-    assign attr[4][0] = tlb_g[4];
+-    assign attr[4][1] = s1_asid == tlb_asid[4];
+-    assign attr[4][2] = (s1_vppn[18:10]==tlb_vppn[4][18:10])
+-        && (tlb_ps4MB[4] || s1_vppn[9:0]==tlb_vppn[4][ 9: 0]);
+-    assign inv_match[4] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[4][0]))
+-                        ||((invtlb_op==3) & (!attr[4][0]))
+-                        ||((invtlb_op==4) & (!attr[4][0]) & (attr[4][1]))
+-                        ||((invtlb_op==5) & (!attr[4][0]) & attr[4][1] & attr[4][2])
+-                        ||((invtlb_op==6) & (attr[4][0] | attr[4][1]) & attr[4][2]);
+-    assign attr[5][0] = tlb_g[5];
+-    assign attr[5][1] = s1_asid == tlb_asid[5];
+-    assign attr[5][2] = (s1_vppn[18:10]==tlb_vppn[5][18:10])
+-        && (tlb_ps4MB[5] || s1_vppn[9:0]==tlb_vppn[5][ 9: 0]);
+-    assign inv_match[5] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[5][0]))
+-                        ||((invtlb_op==3) & (!attr[5][0]))
+-                        ||((invtlb_op==4) & (!attr[5][0]) & (attr[5][1]))
+-                        ||((invtlb_op==5) & (!attr[5][0]) & attr[5][1] & attr[5][2])
+-                        ||((invtlb_op==6) & (attr[5][0] | attr[5][1]) & attr[5][2]);
+-    assign attr[6][0] = tlb_g[6];
+-    assign attr[6][1] = s1_asid == tlb_asid[6];
+-    assign attr[6][2] = (s1_vppn[18:10]==tlb_vppn[6][18:10])
+-        && (tlb_ps4MB[6] || s1_vppn[9:0]==tlb_vppn[6][ 9: 0]);
+-    assign inv_match[6] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[6][0]))
+-                        ||((invtlb_op==3) & (!attr[6][0]))
+-                        ||((invtlb_op==4) & (!attr[6][0]) & (attr[6][1]))
+-                        ||((invtlb_op==5) & (!attr[6][0]) & attr[6][1] & attr[6][2])
+-                        ||((invtlb_op==6) & (attr[6][0] | attr[6][1]) & attr[6][2]);
+-    assign attr[7][0] = tlb_g[7];
+-    assign attr[7][1] = s1_asid == tlb_asid[7];
+-    assign attr[7][2] = (s1_vppn[18:10]==tlb_vppn[7][18:10])
+-        && (tlb_ps4MB[7] || s1_vppn[9:0]==tlb_vppn[7][ 9: 0]);
+-    assign inv_match[7] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[7][0]))
+-                        ||((invtlb_op==3) & (!attr[7][0]))
+-                        ||((invtlb_op==4) & (!attr[7][0]) & (attr[7][1]))
+-                        ||((invtlb_op==5) & (!attr[7][0]) & attr[7][1] & attr[7][2])
+-                        ||((invtlb_op==6) & (attr[7][0] | attr[7][1]) & attr[7][2]);
+-    assign attr[8][0] = tlb_g[8];
+-    assign attr[8][1] = s1_asid == tlb_asid[8];
+-    assign attr[8][2] = (s1_vppn[18:10]==tlb_vppn[8][18:10])
+-        && (tlb_ps4MB[8] || s1_vppn[9:0]==tlb_vppn[8][ 9: 0]);
+-    assign inv_match[8] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[8][0]))
+-                        ||((invtlb_op==3) & (!attr[8][0]))
+-                        ||((invtlb_op==4) & (!attr[8][0]) & (attr[8][1]))
+-                        ||((invtlb_op==5) & (!attr[8][0]) & attr[8][1] & attr[8][2])
+-                        ||((invtlb_op==6) & (attr[8][0] | attr[8][1]) & attr[8][2]);
+-    assign attr[9][0] = tlb_g[9];
+-    assign attr[9][1] = s1_asid == tlb_asid[9];
+-    assign attr[9][2] = (s1_vppn[18:10]==tlb_vppn[9][18:10])
+-        && (tlb_ps4MB[9] || s1_vppn[9:0]==tlb_vppn[9][ 9: 0]);
+-    assign inv_match[9] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[9][0]))
+-                        ||((invtlb_op==3) & (!attr[9][0]))
+-                        ||((invtlb_op==4) & (!attr[9][0]) & (attr[9][1]))
+-                        ||((invtlb_op==5) & (!attr[9][0]) & attr[9][1] & attr[9][2])
+-                        ||((invtlb_op==6) & (attr[9][0] | attr[9][1]) & attr[9][2]);
+-    assign attr[10][0] = tlb_g[10];
+-    assign attr[10][1] = s1_asid == tlb_asid[10];
+-    assign attr[10][2] = (s1_vppn[18:10]==tlb_vppn[10][18:10])
+-        && (tlb_ps4MB[10] || s1_vppn[9:0]==tlb_vppn[10][ 9: 0]);
+-    assign inv_match[10] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[10][0]))
+-                        ||((invtlb_op==3) & (!attr[10][0]))
+-                        ||((invtlb_op==4) & (!attr[10][0]) & (attr[10][1]))
+-                        ||((invtlb_op==5) & (!attr[10][0]) & attr[10][1] & attr[10][2])
+-                        ||((invtlb_op==6) & (attr[10][0] | attr[10][1]) & attr[10][2]);
+-    assign attr[11][0] = tlb_g[11];
+-    assign attr[11][1] = s1_asid == tlb_asid[11];
+-    assign attr[11][2] = (s1_vppn[18:10]==tlb_vppn[11][18:10])
+-        && (tlb_ps4MB[11] || s1_vppn[9:0]==tlb_vppn[11][ 9: 0]);
+-    assign inv_match[11] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[11][0]))
+-                        ||((invtlb_op==3) & (!attr[11][0]))
+-                        ||((invtlb_op==4) & (!attr[11][0]) & (attr[11][1]))
+-                        ||((invtlb_op==5) & (!attr[11][0]) & attr[11][1] & attr[11][2])
+-                        ||((invtlb_op==6) & (attr[11][0] | attr[11][1]) & attr[11][2]);
+-    assign attr[12][0] = tlb_g[12];
+-    assign attr[12][1] = s1_asid == tlb_asid[12];
+-    assign attr[12][2] = (s1_vppn[18:10]==tlb_vppn[12][18:10])
+-        && (tlb_ps4MB[12] || s1_vppn[9:0]==tlb_vppn[12][ 9: 0]);
+-    assign inv_match[12] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[12][0]))
+-                        ||((invtlb_op==3) & (!attr[12][0]))
+-                        ||((invtlb_op==4) & (!attr[12][0]) & (attr[12][1]))
+-                        ||((invtlb_op==5) & (!attr[12][0]) & attr[12][1] & attr[12][2])
+-                        ||((invtlb_op==6) & (attr[12][0] | attr[12][1]) & attr[12][2]);
+-    assign attr[13][0] = tlb_g[13];
+-    assign attr[13][1] = s1_asid == tlb_asid[13];
+-    assign attr[13][2] = (s1_vppn[18:10]==tlb_vppn[13][18:10])
+-        && (tlb_ps4MB[13] || s1_vppn[9:0]==tlb_vppn[13][ 9: 0]);
+-    assign inv_match[13] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[13][0]))
+-                        ||((invtlb_op==3) & (!attr[13][0]))
+-                        ||((invtlb_op==4) & (!attr[13][0]) & (attr[13][1]))
+-                        ||((invtlb_op==5) & (!attr[13][0]) & attr[13][1] & attr[13][2])
+-                        ||((invtlb_op==6) & (attr[13][0] | attr[13][1]) & attr[13][2]);
+-    assign attr[14][0] = tlb_g[14];
+-    assign attr[14][1] = s1_asid == tlb_asid[14];
+-    assign attr[14][2] = (s1_vppn[18:10]==tlb_vppn[14][18:10])
+-        && (tlb_ps4MB[14] || s1_vppn[9:0]==tlb_vppn[14][ 9: 0]);
+-    assign inv_match[14] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[14][0]))
+-                        ||((invtlb_op==3) & (!attr[14][0]))
+-                        ||((invtlb_op==4) & (!attr[14][0]) & (attr[14][1]))
+-                        ||((invtlb_op==5) & (!attr[14][0]) & attr[14][1] & attr[14][2])
+-                        ||((invtlb_op==6) & (attr[14][0] | attr[14][1]) & attr[14][2]);
+-    assign attr[15][0] = tlb_g[15];
+-    assign attr[15][1] = s1_asid == tlb_asid[15];
+-    assign attr[15][2] = (s1_vppn[18:10]==tlb_vppn[15][18:10])
+-        && (tlb_ps4MB[15] || s1_vppn[9:0]==tlb_vppn[15][ 9: 0]);
+-    assign inv_match[15] = ((invtlb_op==0||invtlb_op==1) & 1'b1)
+-                        ||((invtlb_op==2) & (attr[15][0]))
+-                        ||((invtlb_op==3) & (!attr[15][0]))
+-                        ||((invtlb_op==4) & (!attr[15][0]) & (attr[15][1]))
+-                        ||((invtlb_op==5) & (!attr[15][0]) & attr[15][1] & attr[15][2])
+-                        ||((invtlb_op==6) & (attr[15][0] | attr[15][1]) & attr[15][2]);       
+-    // generate // ! 用来产生写入信息
+-    //     for(tlb_index = 0; tlb_index < TLBNUM; tlb_index = tlb_index+1)
+-    //     begin: __inv_TLB
+-    //         always @(posedge clk ) begin
+-    //             if(inv_match[tlb_index] & invtlb_valid)
+-    //                 tlb_e[tlb_index] <= 1'b0;
+-    //         end
+-    //    end 
+-    // endgenerate
++            assign inv_match[tlb_index] = ((invtlb_op==0||invtlb_op==1) & 1'b1)  // all
++                                         ||((invtlb_op==2) & (attr[tlb_index][0]))  // G = 1
++                                         ||((invtlb_op==3) & (!attr[tlb_index][0]))  // G = 0
++                                         ||((invtlb_op==4) & (!attr[tlb_index][0]) & (attr[tlb_index][1])) // G=0, ASID一致
++                                         ||((invtlb_op==5) & (!attr[tlb_index][0]) & attr[tlb_index][1] & attr[tlb_index][2])
++                                         ||((invtlb_op==6) & (attr[tlb_index][0] | attr[tlb_index][1]) & attr[tlb_index][2]);
++          end
++    endgenerate              
++
++//     always @(posedge clk ) begin // ! 用来产生写入信息
++//         generate 
++//             for(tlb_index = 0; tlb_index < TLBNUM; tlb_index = tlb_index+1)
++//             begin: __inv_TLB
++//                 if(inv_match[tlb_index] & invtlb_valid)
++//                     tlb_e[tlb_index] <= 1'b0;
++//             end 
++//         endgenerate
++//     end
+ 
+     always @(posedge clk ) begin
+         if(inv_match[0] & invtlb_valid)
+@@ -536,6 +250,8 @@ module tlb
+ // ! 写端口
+     always @(posedge clk) begin
+         if (we) begin :__TLB_Write
++
++        //     tlb_e[w_index] <= w_e;
+             
+             tlb_ps4MB[w_index]  <= (w_ps==6'd22);
+             tlb_vppn[w_index]   <= w_vppn;
+diff --git a/vaddr_trans.v b/vaddr_trans.v
+new file mode 100644
+index 0000000..3e18d3d
+--- /dev/null
++++ b/vaddr_trans.v
+@@ -0,0 +1,75 @@
++module vaddr_transfer(
++    input wire  [31:0] va,       // 传入的虚地址
++    input wire  [ 2:0] inst_op,  // 三类输入{load.store,inst}
++    output wire [31:0] pa,       // 输出的实地址
++    output wire [ 5:0] tlb_ex_bus,//{PME,PPI,PIS,PIL,PIF,TLBR}, 相关的异常
++    // tlb:: 和s0/1连接
++    output wire [18:0] s_vppn,
++    output wire        s_va_bit12,
++    output wire [ 9:0] s_asid,
++    input wire         s_found,
++    input wire  [ 3:0] s_index,
++    input wire  [19:0] s_ppn,
++    input wire  [ 5:0] s_ps,
++    input wire  [ 1:0] s_plv,
++    input wire  [ 1:0] s_mat,
++    input wire         s_d,
++    input wire         s_v,
++    // crmd:: 读入csr中信息做判断
++    input wire  [31:0] csr_asid,
++    input wire  [31:0] csr_crmd,
++    // dmw:: 从dmw中得到翻译信息
++    output wire dmw_hit,
++    input wire  [31:0] csr_dmw0,
++    input wire  [31:0] csr_dmw1
++);
++// ! 两种模式
++wire direct_mode;
++wire mapping_mode;
++assign direct_mode = csr_crmd[3] & ~csr_crmd[4]; // da = 1 && pg = 0
++assign mapping_mode = ~csr_crmd[3] & csr_crmd[4];
++
++//direct
++wire dmw_hit0;
++wire dmw_hit1;
++wire [31:0] dmw_pa0;
++wire [31:0] dmw_pa1;
++wire [31:0] tlb_pa;
++
++// * 直接映射地址翻译模式
++    assign dmw_hit  = dmw_hit0 | dmw_hit1;
++    assign dmw_hit0 = csr_dmw0[csr_crmd[1:0]] && (csr_dmw0[31:29]==va[31:29]);
++    assign dmw_hit1 = csr_dmw1[csr_crmd[1:0]] && (csr_dmw1[31:29]==va[31:29]);
++    assign dmw_pa0  = {csr_dmw0[27:25],va[28:0]};
++    assign dmw_pa1  = {csr_dmw1[27:25],va[28:0]};
++// * 页表的虚实转换
++    // ! output wire
++    assign s_vppn =  va[31:13];
++    assign s_va_bit12 = va[12];
++    assign s_asid =  csr_asid[9:0];
++    // ! input wire--翻译
++    assign tlb_pa = (s_ps==6'd12)? {s_ppn[19:0],va[11:0]} : {s_ppn[19:10],va[21:0]};
++    // ! 异常:{PME,PPE,PIS,PIL,PIF,TLBR}
++    assign tlb_ex_bus = {6{!direct_mode}} & // 如果是直接模式, 就不会由tlb报异常
++            {6{!dmw_hit}} &  // 如果dmw命中, 也不会考虑tlb异常
++            {6{|inst_op}} & {// 如果inst_op有效
++            inst_op[1]    & ~s_d, // 页修改异常:: PME
++            csr_crmd[1:0] > s_plv,// 页权限异常:: PPI
++            inst_op[1]    & ~s_v, // store页无效例外:: PIS
++            inst_op[2]    & ~s_v, // 取指页无效:: PIF
++            inst_op[0]    & ~s_v, // load页无效:: PIL
++            ~s_found};// 页重填例外
++
++    // input wire  [ 3:0] s_index, 两个未用到的信号端口
++    // input wire  [ 1:0] s_mat,
++// ! 获得实地址
++/*
++ * 第一步, 首先看是否是direct, 若是则直接返回va地址作为pa
++ * 查看是否由dwm翻译命中, 否则选择tlb_pa
++ */
++assign pa = direct_mode ? va:
++        (dmw_hit0 ? dmw_pa0 :
++        (dmw_hit1 ? dmw_pa1 : tlb_pa));
++
++
++endmodule
+\ No newline at end of file
+-- 
+2.29.2.windows.2
+
